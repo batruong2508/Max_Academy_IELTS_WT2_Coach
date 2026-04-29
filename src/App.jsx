@@ -350,25 +350,25 @@ export default function App() {
     setIsEvaluatingTranslation({});
 
     const systemInstruction = `You are an expert IELTS tutor creating a guided lesson for a beginner-to-intermediate student (5.0 - 6.0) based on this prompt: "${prompt}".
-    CRITICAL RULES:
-    1. 'highlightWords' must have EXACTLY 5 advanced IELTS words from the passage.
-    2. 'exercises' must have EXACTLY 2 items of DIFFERENT types (e.g., 'matching' and 'true_false'), each with 3-4 questions.
-    3. 'outlines' must follow the 40/60 EGOSFI structure (Body 1: 40%, Body 2: 60%). Each outline must have exactly 5 sentences.
-    4. The 'readingPassage' MUST be a journalistic feature article (strictly between 350 and 450 words), accessible to intermediate learners (B1/B2), MUST include SUBHEADINGS, and MUST NOT sound like an IELTS essay.`;
+    CRITICAL RULES TO PREVENT TIMEOUTS:
+    1. 'readingPassage': A short, engaging article (strictly MAXIMUM 200 - 250 words).
+    2. 'highlightWords': EXACTLY 5 advanced vocabulary words found in the passage.
+    3. 'exercises': EXACTLY 1 exercise (type: 'fill_in_the_blank' or 'true_false') with EXACTLY 3 questions.
+    4. 'outlines': 2 body paragraphs (Body 1: Counter-argument, Body 2: Main argument). Each outline must have EXACTLY 3 core sentences (vn, keywords, en) to keep the payload lightweight.`;
 
     try {
       const result = await fetchWithRetry(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: "Generate the guided lesson JSON based on the system instructions." }] }],
+          contents: [{ parts: [{ text: "Generate the guided lesson JSON strictly following the length constraints to prevent timeout." }] }],
           systemInstruction: { parts: [{ text: systemInstruction }] },
           generationConfig: {
             responseMimeType: "application/json",
             responseSchema: {
               type: "OBJECT",
               properties: {
-                readingPassage: { type: "STRING", description: "The 350-450 word feature article." },
+                readingPassage: { type: "STRING", description: "The 200-250 word short article." },
                 highlightWords: { type: "ARRAY", items: { type: "STRING" } },
                 exercises: {
                   type: "ARRAY",
@@ -429,7 +429,7 @@ export default function App() {
       
     } catch (error) {
       console.error("Lỗi Parsing hoặc API:", error);
-      showToast("Lỗi kết nối. Vui lòng bấm thử lại (AI bị quá tải hoặc phản hồi bị lỗi).", "error");
+      showToast(`Lỗi tạo bài: ${error.message || 'AI bị quá tải'}. Vui lòng thử lại!`, "error");
     } finally {
       setIsGeneratingGuidedData(false);
     }
