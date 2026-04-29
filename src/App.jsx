@@ -350,61 +350,73 @@ export default function App() {
     setIsEvaluatingTranslation({});
 
     const systemInstruction = `You are an expert IELTS tutor creating a guided lesson for a beginner-to-intermediate student (5.0 - 6.0) based on this prompt: "${prompt}".
-    You MUST output ONLY a valid JSON object matching this exact structure:
-    {
-      "readingPassage": "A captivating, in-depth feature article (STRICTLY between 600 and 700 words) written in a clear, accessible journalistic style (B1/B2 English level). ABSOLUTELY DO NOT write it like an IELTS essay. Instead, write a comprehensive report on the topic. CRITICAL RULE: You MUST explicitly explore at least 4 DISTINCT IDEAS/PERSPECTIVES (e.g., 2 supporting, 2 opposing) to provide the student with ample material for their essay. Use clear SUBHEADINGS to break up the text into readable sections, making it easy for students to skim and extract ideas. Seamlessly weave in real-world examples and naturally embed EXACTLY 5 specific advanced collocations for them to learn.",
-      "highlightWords": ["word1", "word2", "word3", "word4", "word5"],
-      "exercises": [
-        {
-          "type": "matching", 
-          "instruction": "Vietnamese instruction for the exercise",
-          "items": [ { "question": "The question/meaning", "answer": "The english answer" } ]
-        },
-        {
-          "type": "true_false",
-          "instruction": "Vietnamese instruction",
-          "items": [ { "question": "Statement", "answer": "True" } ] 
-        }
-      ],
-      "outlines": [
-        {
-          "title": "Vietnamese title for Body 1 (Counter-argument)",
-          "sentences": [
-            { "vn": "Vietnamese sentence 1 (Topic sentence - Idea 1)", "keywords": "english, keywords", "en": "Golden English translation" },
-            { "vn": "Vietnamese sentence 2 (Explanation/Development for Idea 1)", "keywords": "english, keywords", "en": "Golden English translation" },
-            { "vn": "Vietnamese sentence 3 (Topic sentence - Idea 2)", "keywords": "english, keywords", "en": "Golden English translation" },
-            { "vn": "Vietnamese sentence 4 (Example for Idea 2)", "keywords": "english, keywords", "en": "Golden English translation" },
-            { "vn": "Vietnamese sentence 5 (Result/Conclusion linking both)", "keywords": "english, keywords", "en": "Golden English translation" }
-          ]
-        },
-        {
-          "title": "Vietnamese title for Body 2 (Main Argument)",
-          "sentences": [
-            { "vn": "Vietnamese sentence 1 (Topic sentence - Idea 1)", "keywords": "english, keywords", "en": "Golden English translation" },
-            { "vn": "Vietnamese sentence 2 (Explanation/Development for Idea 1)", "keywords": "english, keywords", "en": "Golden English translation" },
-            { "vn": "Vietnamese sentence 3 (Topic sentence - Idea 2)", "keywords": "english, keywords", "en": "Golden English translation" },
-            { "vn": "Vietnamese sentence 4 (Example for Idea 2)", "keywords": "english, keywords", "en": "Golden English translation" },
-            { "vn": "Vietnamese sentence 5 (Result/Conclusion linking both)", "keywords": "english, keywords", "en": "Golden English translation" }
-          ]
-        }
-      ]
-    }
     CRITICAL RULES:
-    1. The output must be ONLY valid, parseable JSON.
-    2. 'highlightWords' must have EXACTLY 5 advanced IELTS words from the passage.
-    3. 'exercises' must have EXACTLY 2 items of DIFFERENT types, each with 3-5 questions.
-    4. 'outlines' must follow the 40/60 EGOSFI structure.
-    5. The 'readingPassage' MUST be a journalistic feature article (600-700 words), accessible to intermediate learners (B1/B2), MUST include SUBHEADINGS, and MUST NOT sound like an IELTS essay.`;
+    1. 'highlightWords' must have EXACTLY 5 advanced IELTS words from the passage.
+    2. 'exercises' must have EXACTLY 2 items of DIFFERENT types (e.g., 'matching' and 'true_false'), each with 3-4 questions.
+    3. 'outlines' must follow the 40/60 EGOSFI structure (Body 1: 40%, Body 2: 60%). Each outline must have exactly 5 sentences.
+    4. The 'readingPassage' MUST be a journalistic feature article (strictly between 350 and 450 words), accessible to intermediate learners (B1/B2), MUST include SUBHEADINGS, and MUST NOT sound like an IELTS essay.`;
 
     try {
       const result = await fetchWithRetry(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: "Generate the guided lesson JSON. ONLY output JSON." }] }],
+          contents: [{ parts: [{ text: "Generate the guided lesson JSON based on the system instructions." }] }],
           systemInstruction: { parts: [{ text: systemInstruction }] },
           generationConfig: {
-            responseMimeType: "application/json"
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: "OBJECT",
+              properties: {
+                readingPassage: { type: "STRING", description: "The 350-450 word feature article." },
+                highlightWords: { type: "ARRAY", items: { type: "STRING" } },
+                exercises: {
+                  type: "ARRAY",
+                  items: {
+                    type: "OBJECT",
+                    properties: {
+                      type: { type: "STRING" },
+                      instruction: { type: "STRING" },
+                      items: {
+                        type: "ARRAY",
+                        items: {
+                          type: "OBJECT",
+                          properties: {
+                            question: { type: "STRING" },
+                            answer: { type: "STRING" }
+                          },
+                          required: ["question", "answer"]
+                        }
+                      }
+                    },
+                    required: ["type", "instruction", "items"]
+                  }
+                },
+                outlines: {
+                  type: "ARRAY",
+                  items: {
+                    type: "OBJECT",
+                    properties: {
+                      title: { type: "STRING" },
+                      sentences: {
+                        type: "ARRAY",
+                        items: {
+                          type: "OBJECT",
+                          properties: {
+                            vn: { type: "STRING" },
+                            keywords: { type: "STRING" },
+                            en: { type: "STRING" }
+                          },
+                          required: ["vn", "keywords", "en"]
+                        }
+                      }
+                    },
+                    required: ["title", "sentences"]
+                  }
+                }
+              },
+              required: ["readingPassage", "highlightWords", "exercises", "outlines"]
+            }
           }
         })
       });
@@ -417,7 +429,7 @@ export default function App() {
       
     } catch (error) {
       console.error("Lỗi Parsing hoặc API:", error);
-      showToast("Lỗi kết nối. Đề bài quá phức tạp khiến AI quá tải, vui lòng bấm thử lại.", "error");
+      showToast("Lỗi kết nối. Vui lòng bấm thử lại (AI bị quá tải hoặc phản hồi bị lỗi).", "error");
     } finally {
       setIsGeneratingGuidedData(false);
     }
