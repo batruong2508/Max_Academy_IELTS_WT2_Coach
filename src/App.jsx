@@ -82,7 +82,7 @@ const SAMPLE_PROMPTS = {
 };
 
 // --- GEMINI API HELPERS ---
-const apiKey = ""; 
+const apiKey = "AIzaSyAGNfXKo_iheqJ9q0vNUZJ-SQwLw_fKKqM"; 
 const MODEL_NAME = "gemini-2.5-flash-preview-09-2025";
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`;
 
