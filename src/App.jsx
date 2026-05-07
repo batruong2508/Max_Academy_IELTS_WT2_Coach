@@ -90,8 +90,8 @@ const SAMPLE_PROMPTS = {
 };
 
 // --- GEMINI API HELPERS (DÙNG API KEY CỦA HỌC VIÊN) ---
-// SỬ DỤNG PHIÊN BẢN LATEST ĐỂ TRÁNH LỖI 404 (MODEL NOT FOUND)
-const MODEL_NAME = "gemini-1.5-flash-latest"; 
+// SỬ DỤNG ĐÚNG TÊN CHUẨN ĐỂ TRÁNH LỖI 404 (Không dùng đuôi -latest)
+const MODEL_NAME = "gemini-1.5-flash"; 
 
 async function fetchWithRetry(options, retries = 3) {
   const apiKey = localStorage.getItem('gemini_api_key');
@@ -340,7 +340,7 @@ export default function App() {
       setShowApiKeyModal(true);
       showToast("API Key không hợp lệ hoặc chưa được cung cấp!", "error", 5000);
     } else if (error.message === "QUOTA_EXCEEDED") {
-      showToast("⚠️ Tài khoản API đang bị Google giới hạn số lần gọi (Lỗi 429). Hãy đợi 1-2 phút rồi thử lại, hoặc dùng API Key khác.", "error", 7000);
+      showToast("⚠️ Tài khoản API đang bị Google giới hạn số lần gọi (Lỗi 429). Hãy đợi 1 phút rồi thử lại nhé!", "error", 7000);
     } else if (error.message === "MODEL_NOT_FOUND") {
       showToast("⚠️ Lỗi 404: Không tìm thấy phiên bản AI này trên Google. Hãy thử cập nhật lại mã nguồn.", "error", 7000);
     } else {
