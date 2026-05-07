@@ -90,33 +90,46 @@ const SAMPLE_PROMPTS = {
 };
 
 // --- GEMINI API HELPERS (DÙNG API KEY CỦA HỌC VIÊN) ---
-// SỬ DỤNG ĐÚNG TÊN CHUẨN ĐỂ TRÁNH LỖI 404 (Không dùng đuôi -latest)
-const MODEL_NAME = "gemini-1.5-flash"; 
+// HỆ THỐNG TỰ ĐỘNG CHUYỂN ĐỔI MODEL ĐỂ CHỐNG LỖI 404
+const AI_MODELS = [
+  "gemini-1.5-flash",
+  "gemini-1.5-pro",
+  "gemini-pro"
+]; 
 
-async function fetchWithRetry(options, retries = 3) {
+async function fetchWithRetry(options, retries = 2) {
   const apiKey = localStorage.getItem('gemini_api_key');
   if (!apiKey) throw new Error("MISSING_API_KEY");
   
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey.trim()}`;
-  const delays = [1000, 2000, 4000];
+  const delays = [1000, 2000];
+  let lastError = null;
   
-  for (let i = 0; i < retries; i++) {
-    try {
-      const response = await fetch(url, options);
-      if (!response.ok) {
-        if (response.status === 400 || response.status === 403) throw new Error("INVALID_API_KEY");
-        // Xử lý riêng lỗi 429 và 404 để báo thân thiện
-        if (response.status === 429) throw new Error("QUOTA_EXCEEDED");
-        if (response.status === 404) throw new Error("MODEL_NOT_FOUND");
-        throw new Error(`HTTP error! status: ${response.status}`);
+  for (let model of AI_MODELS) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`;
+    
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+          if (response.status === 400 || response.status === 403) throw new Error("INVALID_API_KEY");
+          if (response.status === 429) throw new Error("QUOTA_EXCEEDED");
+          if (response.status === 404) {
+             lastError = new Error("MODEL_NOT_FOUND");
+             break; // Bỏ qua model này, thử model tiếp theo trong danh sách
+          }
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+      } catch (error) {
+        if (error.message === "INVALID_API_KEY" || error.message === "MISSING_API_KEY" || error.message === "QUOTA_EXCEEDED") throw error;
+        lastError = error;
+        if (error.message === "MODEL_NOT_FOUND") break; // Chuyển model ngay lập tức
+        if (i === retries - 1) break; 
+        await new Promise(res => setTimeout(res, delays[i]));
       }
-      return await response.json();
-    } catch (error) {
-      if (error.message === "INVALID_API_KEY" || error.message === "MISSING_API_KEY" || error.message === "QUOTA_EXCEEDED" || error.message === "MODEL_NOT_FOUND") throw error;
-      if (i === retries - 1) throw error;
-      await new Promise(res => setTimeout(res, delays[i]));
     }
   }
+  throw lastError || new Error("ALL_MODELS_FAILED");
 }
 
 const parseGeminiResponse = (text) => {
@@ -334,15 +347,15 @@ export default function App() {
     }
   };
 
-  // Cập nhật hàm xử lý lỗi để báo chi tiết lỗi
+  // Cập nhật hàm xử lý lỗi
   const handleApiError = (error) => {
     if (error.message === "INVALID_API_KEY" || error.message === "MISSING_API_KEY") {
       setShowApiKeyModal(true);
       showToast("API Key không hợp lệ hoặc chưa được cung cấp!", "error", 5000);
     } else if (error.message === "QUOTA_EXCEEDED") {
-      showToast("⚠️ Tài khoản API đang bị Google giới hạn số lần gọi (Lỗi 429). Hãy đợi 1 phút rồi thử lại nhé!", "error", 7000);
-    } else if (error.message === "MODEL_NOT_FOUND") {
-      showToast("⚠️ Lỗi 404: Không tìm thấy phiên bản AI này trên Google. Hãy thử cập nhật lại mã nguồn.", "error", 7000);
+      showToast("⚠️ API đang bị giới hạn số lần gọi (Lỗi 429). Hãy đợi 1 phút rồi thử lại nhé!", "error", 7000);
+    } else if (error.message === "MODEL_NOT_FOUND" || error.message === "ALL_MODELS_FAILED") {
+      showToast("⚠️ Lỗi 404: API Key của bạn không hỗ trợ các phiên bản AI này. Vui lòng tạo 1 API Key khác.", "error", 8000);
     } else {
       showToast(error.message || "Lỗi kết nối AI. Vui lòng thử lại sau.", "error");
     }
