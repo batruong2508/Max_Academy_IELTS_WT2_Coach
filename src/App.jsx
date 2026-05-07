@@ -15,7 +15,6 @@ import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc
 // --- FIREBASE INITIALIZATION (MÁY CHỦ CỦA BẠN) ---
 let app, auth, db, appId;
 try {
-  // Config được trích xuất từ màn hình của bạn - Sẵn sàng cho Vercel
   const firebaseConfig = {
     apiKey: "AIzaSyB-jyWPSmuq2Y76Luk78nax87Jq2X-iTKc",
     authDomain: "max-academy-a6b50.firebaseapp.com",
@@ -91,7 +90,8 @@ const SAMPLE_PROMPTS = {
 };
 
 // --- GEMINI API HELPERS (DÙNG API KEY CỦA HỌC VIÊN) ---
-const MODEL_NAME = "gemini-2.5-flash"; 
+// ĐỔI MODEL SANG 1.5-flash CHO ỔN ĐỊNH VÀ ÍT BỊ LỖI 429
+const MODEL_NAME = "gemini-1.5-flash"; 
 
 async function fetchWithRetry(options, retries = 3) {
   const apiKey = localStorage.getItem('gemini_api_key');
@@ -105,11 +105,13 @@ async function fetchWithRetry(options, retries = 3) {
       const response = await fetch(url, options);
       if (!response.ok) {
         if (response.status === 400 || response.status === 403) throw new Error("INVALID_API_KEY");
+        // Xử lý riêng lỗi 429 để báo thân thiện
+        if (response.status === 429) throw new Error("QUOTA_EXCEEDED");
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       return await response.json();
     } catch (error) {
-      if (error.message === "INVALID_API_KEY" || error.message === "MISSING_API_KEY") throw error;
+      if (error.message === "INVALID_API_KEY" || error.message === "MISSING_API_KEY" || error.message === "QUOTA_EXCEEDED") throw error;
       if (i === retries - 1) throw error;
       await new Promise(res => setTimeout(res, delays[i]));
     }
@@ -160,7 +162,7 @@ const getFullSentenceDetails = (fullText, errorText, correctedText) => {
 export default function App() {
   // --- AUTH & PERMISSION STATES ---
   const [user, setUser] = useState(null);
-  const [isAuthorized, setIsAuthorized] = useState(null); // null: loading, true: allow, false: deny
+  const [isAuthorized, setIsAuthorized] = useState(null); 
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -249,9 +251,9 @@ export default function App() {
   const promptRef = useRef(null);
   const timerRef = useRef(null);
 
-  const showToast = (message, type = 'info') => {
+  const showToast = (message, type = 'info', duration = 3000) => {
     setToast({ visible: true, message, type });
-    setTimeout(() => setToast({ visible: false, message: '', type: 'info' }), 3000);
+    setTimeout(() => setToast({ visible: false, message: '', type: 'info' }), duration);
   };
 
   const closeAllSidebars = () => {
@@ -276,7 +278,7 @@ export default function App() {
           }
         } catch (error) {
           console.error("Whitelist check error:", error);
-          setIsAuthorized(false); // Default to deny if query fails
+          setIsAuthorized(false); 
         }
       } else {
         setIsAuthorized(null);
@@ -331,10 +333,13 @@ export default function App() {
     }
   };
 
+  // Cập nhật hàm xử lý lỗi để báo chi tiết lỗi 429
   const handleApiError = (error) => {
     if (error.message === "INVALID_API_KEY" || error.message === "MISSING_API_KEY") {
       setShowApiKeyModal(true);
-      showToast("API Key không hợp lệ hoặc chưa được cung cấp!", "error");
+      showToast("API Key không hợp lệ hoặc chưa được cung cấp!", "error", 5000);
+    } else if (error.message === "QUOTA_EXCEEDED") {
+      showToast("⚠️ Tài khoản API đang bị Google giới hạn số lần gọi (Lỗi 429). Hãy đợi 1-2 phút rồi thử lại, hoặc dùng một API Key khác.", "error", 7000);
     } else {
       showToast(error.message || "Lỗi kết nối AI. Vui lòng thử lại sau.", "error");
     }
@@ -1229,7 +1234,7 @@ export default function App() {
              <div className="p-6 border-b bg-slate-50 text-center">
                 <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-inner"><Key size={32}/></div>
                 <h3 className="font-black text-slate-800 text-xl">Cấu hình AI (API Key)</h3>
-                <p className="text-xs text-slate-500 mt-2">Hệ thống sử dụng Gemini 2.5 Flash. Vui lòng dán mã API Key của bạn để sử dụng toàn bộ tính năng.</p>
+                <p className="text-xs text-slate-500 mt-2">Hệ thống sử dụng Gemini AI. Vui lòng dán mã API Key của bạn để sử dụng toàn bộ tính năng.</p>
              </div>
              <div className="p-6 space-y-6">
                 <div>
