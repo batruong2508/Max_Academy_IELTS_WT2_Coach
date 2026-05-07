@@ -90,8 +90,8 @@ const SAMPLE_PROMPTS = {
 };
 
 // --- GEMINI API HELPERS (DÙNG API KEY CỦA HỌC VIÊN) ---
-// ĐỔI MODEL SANG 1.5-flash CHO ỔN ĐỊNH VÀ ÍT BỊ LỖI 429
-const MODEL_NAME = "gemini-1.5-flash"; 
+// SỬ DỤNG PHIÊN BẢN LATEST ĐỂ TRÁNH LỖI 404 (MODEL NOT FOUND)
+const MODEL_NAME = "gemini-1.5-flash-latest"; 
 
 async function fetchWithRetry(options, retries = 3) {
   const apiKey = localStorage.getItem('gemini_api_key');
@@ -105,13 +105,14 @@ async function fetchWithRetry(options, retries = 3) {
       const response = await fetch(url, options);
       if (!response.ok) {
         if (response.status === 400 || response.status === 403) throw new Error("INVALID_API_KEY");
-        // Xử lý riêng lỗi 429 để báo thân thiện
+        // Xử lý riêng lỗi 429 và 404 để báo thân thiện
         if (response.status === 429) throw new Error("QUOTA_EXCEEDED");
+        if (response.status === 404) throw new Error("MODEL_NOT_FOUND");
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       return await response.json();
     } catch (error) {
-      if (error.message === "INVALID_API_KEY" || error.message === "MISSING_API_KEY" || error.message === "QUOTA_EXCEEDED") throw error;
+      if (error.message === "INVALID_API_KEY" || error.message === "MISSING_API_KEY" || error.message === "QUOTA_EXCEEDED" || error.message === "MODEL_NOT_FOUND") throw error;
       if (i === retries - 1) throw error;
       await new Promise(res => setTimeout(res, delays[i]));
     }
@@ -333,13 +334,15 @@ export default function App() {
     }
   };
 
-  // Cập nhật hàm xử lý lỗi để báo chi tiết lỗi 429
+  // Cập nhật hàm xử lý lỗi để báo chi tiết lỗi
   const handleApiError = (error) => {
     if (error.message === "INVALID_API_KEY" || error.message === "MISSING_API_KEY") {
       setShowApiKeyModal(true);
       showToast("API Key không hợp lệ hoặc chưa được cung cấp!", "error", 5000);
     } else if (error.message === "QUOTA_EXCEEDED") {
-      showToast("⚠️ Tài khoản API đang bị Google giới hạn số lần gọi (Lỗi 429). Hãy đợi 1-2 phút rồi thử lại, hoặc dùng một API Key khác.", "error", 7000);
+      showToast("⚠️ Tài khoản API đang bị Google giới hạn số lần gọi (Lỗi 429). Hãy đợi 1-2 phút rồi thử lại, hoặc dùng API Key khác.", "error", 7000);
+    } else if (error.message === "MODEL_NOT_FOUND") {
+      showToast("⚠️ Lỗi 404: Không tìm thấy phiên bản AI này trên Google. Hãy thử cập nhật lại mã nguồn.", "error", 7000);
     } else {
       showToast(error.message || "Lỗi kết nối AI. Vui lòng thử lại sau.", "error");
     }
