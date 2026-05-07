@@ -91,7 +91,7 @@ const SAMPLE_PROMPTS = {
 
 // --- GEMINI API HELPERS (DÙNG API KEY CỦA HỌC VIÊN) ---
 // LOẠI BỎ FALLBACK - TRUNG THÀNH VỚI 1 MODEL DUY NHẤT ĐỂ TRÁNH ẢO GIÁC LỖI 404
-const MODEL_NAME = "gemini-1.5-flash"; 
+const MODEL_NAME = "gemini-2.5-flash"; 
 
 async function fetchWithRetry(options, retries = 3) {
   const apiKey = localStorage.getItem('gemini_api_key');
