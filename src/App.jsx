@@ -90,9 +90,11 @@ const SAMPLE_PROMPTS = {
 };
 
 // --- GEMINI API HELPERS (DÙNG API KEY CỦA HỌC VIÊN) ---
-// HỆ THỐNG TỰ ĐỘNG CHUYỂN ĐỔI MODEL ĐỂ CHỐNG LỖI 404
+// DANH SÁCH "CHỐNG ĐẠN": Thử từ bản mới nhất xuống các bản định danh cứng ổn định
 const AI_MODELS = [
-  "gemini-1.5-flash",
+  "gemini-2.5-flash",      // Ưu tiên bản mới nhất nếu cổng đang mở
+  "gemini-1.5-flash",      // Bản ổn định chung
+  "gemini-1.5-flash-001",  // Bản định danh cứng (không bao giờ bị lỗi 404)
   "gemini-1.5-pro",
   "gemini-pro"
 ]; 
@@ -355,7 +357,7 @@ export default function App() {
     } else if (error.message === "QUOTA_EXCEEDED") {
       showToast("⚠️ API đang bị giới hạn số lần gọi (Lỗi 429). Hãy đợi 1 phút rồi thử lại nhé!", "error", 7000);
     } else if (error.message === "MODEL_NOT_FOUND" || error.message === "ALL_MODELS_FAILED") {
-      showToast("⚠️ Lỗi 404: API Key của bạn không hỗ trợ các phiên bản AI này. Vui lòng tạo 1 API Key khác.", "error", 8000);
+      showToast("⚠️ Lỗi 404: API Key của bạn không hỗ trợ các phiên bản AI này. Vui lòng tạo 1 API Key mới từ aistudio.google.com.", "error", 8000);
     } else {
       showToast(error.message || "Lỗi kết nối AI. Vui lòng thử lại sau.", "error");
     }
