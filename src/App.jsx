@@ -90,48 +90,42 @@ const SAMPLE_PROMPTS = {
 };
 
 // --- GEMINI API HELPERS (DÙNG API KEY CỦA HỌC VIÊN) ---
-// DANH SÁCH "CHỐNG ĐẠN": Thử từ bản mới nhất xuống các bản định danh cứng ổn định
-const AI_MODELS = [
-  "gemini-2.5-flash",      // Ưu tiên bản mới nhất nếu cổng đang mở
-  "gemini-1.5-flash",      // Bản ổn định chung
-  "gemini-1.5-flash-001",  // Bản định danh cứng (không bao giờ bị lỗi 404)
-  "gemini-1.5-pro",
-  "gemini-pro"
-]; 
+// LOẠI BỎ FALLBACK - TRUNG THÀNH VỚI 1 MODEL DUY NHẤT ĐỂ TRÁNH ẢO GIÁC LỖI 404
+const MODEL_NAME = "gemini-1.5-flash"; 
 
-async function fetchWithRetry(options, retries = 2) {
+async function fetchWithRetry(options, retries = 3) {
   const apiKey = localStorage.getItem('gemini_api_key');
   if (!apiKey) throw new Error("MISSING_API_KEY");
   
-  const delays = [1000, 2000];
-  let lastError = null;
+  // Tăng thời gian giãn cách nếu Server bận (2s, 4s, 6s)
+  const delays = [2000, 4000, 6000];
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey.trim()}`;
   
-  for (let model of AI_MODELS) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`;
-    
-    for (let i = 0; i < retries; i++) {
-      try {
-        const response = await fetch(url, options);
-        if (!response.ok) {
-          if (response.status === 400 || response.status === 403) throw new Error("INVALID_API_KEY");
-          if (response.status === 429) throw new Error("QUOTA_EXCEEDED");
-          if (response.status === 404) {
-             lastError = new Error("MODEL_NOT_FOUND");
-             break; // Bỏ qua model này, thử model tiếp theo trong danh sách
-          }
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return await response.json();
-      } catch (error) {
-        if (error.message === "INVALID_API_KEY" || error.message === "MISSING_API_KEY" || error.message === "QUOTA_EXCEEDED") throw error;
-        lastError = error;
-        if (error.message === "MODEL_NOT_FOUND") break; // Chuyển model ngay lập tức
-        if (i === retries - 1) break; 
-        await new Promise(res => setTimeout(res, delays[i]));
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, options);
+      if (!response.ok) {
+        // Phân loại chính xác các mã lỗi từ Google
+        if (response.status === 400 || response.status === 403) throw new Error("INVALID_API_KEY");
+        if (response.status === 429) throw new Error("QUOTA_EXCEEDED");
+        if (response.status === 404) throw new Error("MODEL_NOT_FOUND");
+        if (response.status === 500 || response.status === 503) throw new Error("SERVER_BUSY");
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+      return await response.json();
+    } catch (error) {
+      // Nhóm lỗi nghiêm trọng -> Ngắt ngay lập tức, không thử lại
+      if (error.message === "INVALID_API_KEY" || 
+          error.message === "MISSING_API_KEY" || 
+          error.message === "QUOTA_EXCEEDED" || 
+          error.message === "MODEL_NOT_FOUND") {
+        throw error;
+      }
+      // Nhóm lỗi mạng / Server bận -> Thử lại theo thời gian delay
+      if (i === retries - 1) throw error; 
+      await new Promise(res => setTimeout(res, delays[i]));
     }
   }
-  throw lastError || new Error("ALL_MODELS_FAILED");
 }
 
 const parseGeminiResponse = (text) => {
@@ -349,17 +343,19 @@ export default function App() {
     }
   };
 
-  // Cập nhật hàm xử lý lỗi
+  // Cập nhật hàm xử lý lỗi bắt bệnh chuẩn xác
   const handleApiError = (error) => {
     if (error.message === "INVALID_API_KEY" || error.message === "MISSING_API_KEY") {
       setShowApiKeyModal(true);
-      showToast("API Key không hợp lệ hoặc chưa được cung cấp!", "error", 5000);
+      showToast("API Key không hợp lệ! Nếu copy, hãy chú ý tránh dư dấu cách.", "error", 6000);
     } else if (error.message === "QUOTA_EXCEEDED") {
-      showToast("⚠️ API đang bị giới hạn số lần gọi (Lỗi 429). Hãy đợi 1 phút rồi thử lại nhé!", "error", 7000);
-    } else if (error.message === "MODEL_NOT_FOUND" || error.message === "ALL_MODELS_FAILED") {
-      showToast("⚠️ Lỗi 404: API Key của bạn không hỗ trợ các phiên bản AI này. Vui lòng tạo 1 API Key mới từ aistudio.google.com.", "error", 8000);
+      showToast("⚠️ Thao tác quá nhanh (Lỗi 429). Hãy đợi khoảng 1 phút để AI hồi sức nhé!", "error", 6000);
+    } else if (error.message === "SERVER_BUSY") {
+      showToast("⏳ Máy chủ Google đang bị nghẽn tải. Vui lòng bấm thử lại sau vài giây.", "error", 6000);
+    } else if (error.message === "MODEL_NOT_FOUND") {
+      showToast("⚠️ Lỗi 404: Khóa API của bạn không được cấp quyền cho Mô hình này. Vui lòng tạo Key mới.", "error", 8000);
     } else {
-      showToast(error.message || "Lỗi kết nối AI. Vui lòng thử lại sau.", "error");
+      showToast("Lỗi kết nối AI: " + error.message, "error");
     }
   };
 
