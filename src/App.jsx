@@ -89,8 +89,7 @@ const SAMPLE_PROMPTS = {
   health_gov: "Some people say that it is the responsibility of individuals to take care of their own health and diet. Others think that governments should make sure that their citizens are healthy. Discuss both views and give your opinion."
 };
 
-// --- GEMINI API HELPERS (DÙNG API KEY CỦA HỌC VIÊN) ---
-const MODEL_NAME = "gemini-2.5-flash"; 
+const MODEL_NAME = "gemini-1.5-flash"; 
 
 async function fetchWithRetry(options, retries = 3) {
   const apiKey = localStorage.getItem('gemini_api_key');
@@ -111,10 +110,7 @@ async function fetchWithRetry(options, retries = 3) {
       }
       return await response.json();
     } catch (error) {
-      if (error.message === "INVALID_API_KEY" || 
-          error.message === "MISSING_API_KEY" || 
-          error.message === "QUOTA_EXCEEDED" || 
-          error.message === "MODEL_NOT_FOUND") {
+      if (error.message === "INVALID_API_KEY" || error.message === "MISSING_API_KEY" || error.message === "QUOTA_EXCEEDED" || error.message === "MODEL_NOT_FOUND") {
         throw error;
       }
       if (i === retries - 1) throw error; 
@@ -165,7 +161,6 @@ const getFullSentenceDetails = (fullText, errorText, correctedText) => {
 };
 
 export default function App() {
-  // --- AUTH & PERMISSION STATES ---
   const [user, setUser] = useState(null);
   const [isAuthorized, setIsAuthorized] = useState(null); 
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
@@ -182,6 +177,13 @@ export default function App() {
   const [wordCount, setWordCount] = useState(0);
   const [writingTarget, setWritingTarget] = useState('full');
   
+  // --- AI COPILOT (@@) STATES ---
+  const [vocabHelpCount, setVocabHelpCount] = useState(3);
+  const [vocabCooldown, setVocabCooldown] = useState(0);
+  const [vocabSuggestState, setVocabSuggestState] = useState({
+    show: false, loading: false, options: [], targetText: '', startIdx: -1, endIdx: -1
+  });
+
   // Sidebars & Modals
   const [selectedSample, setSelectedSample] = useState(null); 
   const [selectedVocab, setSelectedVocab] = useState(null);
@@ -267,7 +269,7 @@ export default function App() {
     setShowVocabSidebar(false);
   };
 
-  // --- LOGIN & WHITELIST CHECK ---
+  // Login & Whitelist Effect
   useEffect(() => {
     if (!auth) return;
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -292,7 +294,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // --- CHECK API KEY ---
+  // Fetch API Key
   useEffect(() => {
     if (isAuthorized === true) {
       const key = localStorage.getItem('gemini_api_key');
@@ -300,7 +302,7 @@ export default function App() {
     }
   }, [isAuthorized]);
 
-  // --- FETCH USER DATA ---
+  // Fetch Data
   useEffect(() => {
     if (!user || isAuthorized !== true || !db || !appId) return;
     const samplesRef = collection(db, 'artifacts', appId, 'users', user.uid, 'sample_essays');
@@ -353,14 +355,32 @@ export default function App() {
     }
   };
 
-  // --- UI EFFECTS ---
-  useEffect(() => { setWordCount(essay.trim().split(/\s+/).filter(word => word.length > 0).length); }, [essay]);
+  useEffect(() => { 
+    setWordCount(essay.trim().split(/\s+/).filter(word => word.length > 0).length); 
+    // Tự động Reset Copilot khi người dùng xóa hết bài
+    if (essay.trim() === '') {
+      setVocabHelpCount(3);
+      setVocabCooldown(0);
+    }
+  }, [essay]);
+
   useEffect(() => { if (promptRef.current) { promptRef.current.style.height = 'auto'; promptRef.current.style.height = `${promptRef.current.scrollHeight}px`; } }, [prompt]);
+  
   useEffect(() => {
     if (isTimerRunning && timeRemaining > 0) timerRef.current = setInterval(() => setTimeRemaining(prev => prev - 1), 1000);
     else if (timeRemaining === 0) { setIsTimerRunning(false); clearInterval(timerRef.current); }
     return () => clearInterval(timerRef.current);
   }, [isTimerRunning, timeRemaining]);
+
+  // Bộ đếm lùi cho AI Copilot (Cooldown)
+  useEffect(() => {
+    let timer;
+    if (vocabCooldown > 0) {
+      timer = setInterval(() => setVocabCooldown(c => c - 1), 1000);
+    }
+    return () => clearInterval(timer);
+  }, [vocabCooldown]);
+
   useEffect(() => {
     const handleMouseMove = (e) => {
       if (!isDraggingRef.current) return;
@@ -396,7 +416,75 @@ export default function App() {
     return () => document.removeEventListener('mouseup', handleMouseUp);
   }, [showApiKeyModal]);
 
-  // --- ACTIONS WITH ERROR HANDLING ---
+  const handleEssayKeyDown = async (e) => {
+    // Chỉ kích hoạt khi bấm Enter hoặc Tab
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      const cursorPosition = e.target.selectionStart;
+      const textBeforeCursor = essay.substring(0, cursorPosition);
+      
+      // Bắt chữ @@ và chuỗi text tiếng việt ngay trước con trỏ chuột
+      const match = textBeforeCursor.match(/@@([^@\n]+)$/);
+
+      if (match) {
+        e.preventDefault(); // Chặn việc xuống dòng hay nhảy Tab
+        
+        const targetVi = match[1].trim(); // Chữ tiếng Việt cần dịch
+        
+        if (vocabHelpCount <= 0) {
+          return showToast("Bạn đã hết quyền trợ giúp từ vựng cho bài này. Hãy cố gắng vận dụng vốn từ của bản thân để đi thi thật nhé!", "error", 5000);
+        }
+        
+        if (vocabCooldown > 0) {
+          return showToast(`⏳ Vui lòng đợi ${vocabCooldown} giây nữa để dùng tiếp trợ lý từ vựng.`, "error");
+        }
+
+        // Bật UI Loading
+        setVocabSuggestState({ show: true, loading: true, options: [], targetText: targetVi, startIdx: match.index, endIdx: cursorPosition });
+        
+        // Trích xuất văn cảnh (Lấy 200 ký tự trước dấu @@)
+        const context = textBeforeCursor.slice(Math.max(0, match.index - 200), match.index);
+
+        const systemInstruction = `You are an IELTS Writing expert. The student is writing an essay on: "${prompt}". 
+        They need to translate/paraphrase the Vietnamese phrase "${targetVi}" into an English Band 7.5+ academic collocation or phrase.
+        Here is the context of their sentence so far: "...${context}"
+        Return exactly 3 short, precise English options (maximum 3-5 words each). 
+        Return strictly JSON: { "options": ["option 1", "option 2", "option 3"] }. DO NOT output raw newlines.`;
+
+        try {
+          const result = await fetchWithRetry({
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: "Suggest 3 paraphrase options." }] }], systemInstruction: { parts: [{ text: systemInstruction }] }, generationConfig: { responseMimeType: "application/json" } })
+          });
+          const aiData = parseGeminiResponse(result.candidates[0].content.parts[0].text);
+          
+          setVocabSuggestState(prev => ({ ...prev, loading: false, options: aiData.options || [] }));
+          setVocabHelpCount(prev => prev - 1);
+          setVocabCooldown(20);
+
+        } catch (err) {
+          handleApiError(err);
+          setVocabSuggestState({ show: false, loading: false, options: [], targetText: '', startIdx: -1, endIdx: -1 });
+        }
+      }
+    }
+  };
+
+  const handleApplySuggestion = (chosenText) => {
+    const { startIdx, endIdx } = vocabSuggestState;
+    const newEssay = essay.substring(0, startIdx) + chosenText + essay.substring(endIdx);
+    setEssay(newEssay);
+    setVocabSuggestState({ show: false, loading: false, options: [], targetText: '', startIdx: -1, endIdx: -1 });
+    
+    // Tự động focus lại vào khung viết bài và đặt nháy chuột ngay sau chữ vừa chèn
+    setTimeout(() => {
+      if (editorRef.current) {
+         editorRef.current.focus();
+         const newCursorPos = startIdx + chosenText.length;
+         editorRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 50);
+  };
+
   const handleOpenReviewVocab = () => {
     setNewVocab({ topic: selectedTopic || '', subtopic: selectedSubtopic || '', phrase: selectionPopup.text, basePhrase: '', translation: '', example1: '', example2: '' });
     setVocabStep('init'); setShowVocabModal(true); setSelectionPopup({ show: false, text: '', x: 0, y: 0 });
@@ -455,7 +543,12 @@ export default function App() {
 
   const handleGeneratePrompt = () => {
     const randomPrompt = sampleEssays.length > 0 ? sampleEssays[Math.floor(Math.random() * sampleEssays.length)].prompt : (selectedSubtopic && SAMPLE_PROMPTS[selectedSubtopic] ? SAMPLE_PROMPTS[selectedSubtopic] : "Some people think that technology is driving people apart, while others believe it is bringing people closer together. Discuss both views and give your opinion.");
-    setPrompt(randomPrompt); setEssay(''); setTimeRemaining(40 * 60); setIsTimerRunning(false); setEvaluationResult(null); closeAllSidebars();
+    setPrompt(randomPrompt); 
+    setEssay(''); 
+    setTimeRemaining(40 * 60); setIsTimerRunning(false); setEvaluationResult(null); 
+    // Reset Copilot
+    setVocabHelpCount(3); setVocabCooldown(0); setVocabSuggestState({ show: false, loading: false, options: [], targetText: '', startIdx: -1, endIdx: -1 });
+    closeAllSidebars();
   };
 
   const handleSuggestIdeas = async () => {
@@ -541,6 +634,9 @@ export default function App() {
   const handleEvaluate = async () => {
     if (wordCount < 30) return showToast("Vui lòng viết ít nhất 30 từ để AI có thể đánh giá.", "error");
     setIsEvaluating(true); setIsTimerRunning(false); setActiveCommentIndex(null); setCorrectionAttempts({});
+    // Reset Copilot
+    setVocabHelpCount(3); setVocabCooldown(0); 
+
     let targetInstruction = writingTarget === 'full' ? `Grade the FULL ESSAY.` : writingTarget === 'intro_conc' ? `The student is ONLY writing the INTRODUCTION and CONCLUSION. Evaluate based on Paraphrasing and Thesis.` : `The student is ONLY writing BODY PARAGRAPH(S). Evaluate based on flow, coherence and topic sentences.`;
     const systemInstruction = `You are an IELTS Writing Task 2 examiner. ${targetInstruction} 
     Provide 4 criteria scores, specific comments, and detailedCorrections: [{original, corrected, explanation}].
@@ -589,7 +685,6 @@ export default function App() {
     } catch (error) { handleApiError(error); } finally { setIsGeneratingQuiz(false); }
   };
 
-  // --- STANDARD HELPERS ---
   const formatTime = (seconds) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
   const handleLocateError = (originalText) => {
     if (!editorRef.current) return;
@@ -634,7 +729,6 @@ export default function App() {
     } catch (e) { showToast("Dữ liệu JSON không hợp lệ.", "error"); } finally { setIsRestoring(false); }
   };
 
-  // --- RENDER CONDITIONALS ---
   if (!user) {
     return (
       <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
@@ -671,7 +765,6 @@ export default function App() {
     );
   }
 
-  // --- RENDER APP COMPONENTS ---
   const renderTopNav = () => (
     <div className="w-full bg-slate-900 text-slate-300 flex flex-wrap lg:flex-nowrap items-center justify-between px-4 py-2 shrink-0 shadow-md z-20 relative gap-3">
       <div className="flex items-center gap-3 shrink-0">
@@ -699,7 +792,7 @@ export default function App() {
       <div className="flex items-center gap-2 shrink-0">
         <div className="bg-slate-800 px-3 py-1.5 rounded-lg flex flex-col hidden sm:flex">
            <span className="text-[9px] text-slate-400 uppercase font-black">Học viên</span>
-           <span className="text-xs text-white font-medium truncate max-w-[120px]">{user?.email || 'Guest'}</span>
+           <span className="text-xs text-white font-medium truncate max-w-[120px]">{user.email}</span>
         </div>
         <button onClick={() => setShowApiKeyModal(true)} className="bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Đổi API Key"><Key size={14} /></button>
         <button onClick={() => setActiveTab('backup')} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Backup & Restore"><AlertTriangle size={14} /></button>
@@ -710,25 +803,53 @@ export default function App() {
 
   const renderPracticeTab = () => {
     const getPlaceholderText = () => {
-        if (writingTarget === 'intro_conc') return "Viết phần Mở bài và Kết bài của bạn tại đây... Bôi đen cụm từ bất kỳ để lưu vào Kho Từ Vựng Nhanh nhé.";
-        if (writingTarget === 'body') return "Viết phần Thân bài (Body) của bạn tại đây... Bôi đen cụm từ bất kỳ để lưu vào Kho Từ Vựng Nhanh nhé.";
-        return "Viết trọn vẹn bài essay của bạn tại đây... Bôi đen cụm từ bất kỳ để lưu vào Kho Từ Vựng Nhanh nhé.";
+        if (writingTarget === 'intro_conc') return "Viết phần Mở bài và Kết bài tại đây... Gõ @@[Tiếng Việt] rồi ấn Tab để AI trợ giúp từ vựng.";
+        if (writingTarget === 'body') return "Viết phần Thân bài tại đây... Gõ @@[Tiếng Việt] rồi ấn Tab để AI trợ giúp từ vựng.";
+        return "Viết trọn vẹn bài essay tại đây... Gõ @@[Tiếng Việt] rồi ấn Tab để AI trợ giúp từ vựng.";
     };
 
     return (
     <div className="flex-1 flex p-2 lg:p-3 gap-3 min-h-0">
-      <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col min-w-0">
+      <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col min-w-0 relative">
         
-        <div className="border-b border-slate-100 p-2 lg:p-3 bg-slate-50 flex flex-col gap-2 shrink-0">
+        {/* --- AI COPILOT POPUP --- */}
+        {vocabSuggestState.show && (
+           <div className="absolute inset-0 bg-slate-900/5 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-xl p-4 animate-fadeIn">
+              <div className="bg-white p-5 rounded-2xl shadow-2xl border border-indigo-100 w-full max-w-sm animate-slideUp">
+                 <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
+                    <h4 className="font-black text-indigo-700 flex items-center gap-2 text-sm uppercase tracking-wide"><Wand2 size={16}/> AI Copilot</h4>
+                    {!vocabSuggestState.loading && <button onClick={() => setVocabSuggestState({ ...vocabSuggestState, show: false })} className="text-slate-400 hover:text-rose-500 bg-slate-50 p-1 rounded-md"><X size={16}/></button>}
+                 </div>
+                 
+                 {vocabSuggestState.loading ? (
+                    <div className="flex flex-col items-center justify-center py-6 text-indigo-600 gap-3">
+                       <Loader2 className="animate-spin" size={32}/>
+                       <span className="text-xs font-bold animate-pulse">Đang phân tích ngữ cảnh...</span>
+                    </div>
+                 ) : (
+                    <div className="space-y-3">
+                       <p className="text-xs text-slate-500 mb-3 font-medium">Chọn 1 cụm từ (Band 7.5+) để thay thế cho <strong className="text-rose-600 bg-rose-50 px-1 rounded">"{vocabSuggestState.targetText}"</strong>:</p>
+                       {vocabSuggestState.options.map((opt, i) => (
+                          <button key={i} onClick={() => handleApplySuggestion(opt)} className="w-full text-left p-3 rounded-xl border-2 border-slate-100 hover:border-indigo-400 hover:bg-indigo-50 hover:shadow-md font-bold text-sm text-slate-800 transition-all group">
+                             <span className="text-indigo-400 mr-2 opacity-50 group-hover:opacity-100 font-black">{i+1}.</span> {opt}
+                          </button>
+                       ))}
+                    </div>
+                 )}
+              </div>
+           </div>
+        )}
+
+        <div className="border-b border-slate-100 p-2 lg:p-3 bg-slate-50 flex flex-col gap-2 shrink-0 rounded-t-xl">
           <div className="flex items-center justify-between gap-3 overflow-x-auto [&::-webkit-scrollbar]:hidden">
             <div className="flex items-center gap-1.5 shrink-0">
-              <select className="bg-white border border-slate-200 rounded-md px-2 py-1 outline-none text-xs w-[120px]" value={selectedTopic} onChange={(e) => {setSelectedTopic(e.target.value); setSelectedSubtopic('');}}>
+              <select className="bg-white border border-slate-200 rounded-md px-2 py-1 outline-none text-xs w-[120px] font-medium" value={selectedTopic} onChange={(e) => {setSelectedTopic(e.target.value); setSelectedSubtopic('');}}>
                 <option value="">Chủ đề</option> {TOPICS.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
-              <select className="bg-white border border-slate-200 rounded-md px-2 py-1 outline-none text-xs w-[120px]" value={selectedSubtopic} onChange={(e) => setSelectedSubtopic(e.target.value)} disabled={!selectedTopic || selectedTopic === 'general'}>
+              <select className="bg-white border border-slate-200 rounded-md px-2 py-1 outline-none text-xs w-[120px] font-medium" value={selectedSubtopic} onChange={(e) => setSelectedSubtopic(e.target.value)} disabled={!selectedTopic || selectedTopic === 'general'}>
                 <option value="">Chủ đề phụ</option> {selectedTopic && SUBTOPICS[selectedTopic]?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
-              <button onClick={handleGeneratePrompt} className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 px-2.5 py-1 rounded-md font-bold text-xs flex items-center gap-1"><RotateCcw size={12} /> Tạo Đề</button>
+              <button onClick={handleGeneratePrompt} className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 px-2.5 py-1 rounded-md font-bold text-xs flex items-center gap-1 transition-colors"><RotateCcw size={12} /> Tạo Đề</button>
             </div>
             
             <div className="flex items-center gap-1.5 shrink-0 ml-auto">
@@ -741,42 +862,54 @@ export default function App() {
             </div>
           </div>
 
-          <textarea ref={promptRef} className="w-full bg-transparent text-slate-800 font-bold outline-none resize-y min-h-[40px] max-h-[120px] custom-scrollbar text-sm mt-2" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Nhập đề bài..." rows={2} />
+          <textarea ref={promptRef} className="w-full bg-transparent text-slate-800 font-black outline-none resize-y min-h-[40px] max-h-[120px] custom-scrollbar text-sm mt-2 leading-relaxed" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Nhập đề bài..." rows={2} />
           
-          <div className="flex flex-wrap gap-1.5">
-            <button onClick={handleStartGuidedWriting} disabled={isGeneratingArticle} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors disabled:opacity-60 disabled:cursor-wait">
-              {isGeneratingArticle ? <Loader2 size={12} className="animate-spin" /> : <BookOpen size={12} />} 
-              {isGeneratingArticle ? 'Đang xử lý...' : 'Hướng dẫn viết'}
+          <div className="flex flex-wrap gap-1.5 mt-1">
+            <button onClick={handleStartGuidedWriting} disabled={isGeneratingArticle} className="text-[11px] font-bold flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-all disabled:opacity-50">
+              {isGeneratingArticle ? <Loader2 size={12} className="animate-spin" /> : <BookOpen size={12} />} Hướng dẫn viết
             </button>
-            <button onClick={() => { closeAllSidebars(); handleSuggestPromptVocab(); }} disabled={isGeneratingPromptVocabs} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-100 text-emerald-700 disabled:opacity-60 disabled:cursor-wait">
-              {isGeneratingPromptVocabs ? <Loader2 size={12} className="animate-spin" /> : <Tags size={12} />} 
-              {isGeneratingPromptVocabs ? 'Đang trích xuất...' : '10 Từ Ăn Điểm'}
+            <button onClick={() => { closeAllSidebars(); handleSuggestPromptVocab(); }} disabled={isGeneratingPromptVocabs} className="text-[11px] font-bold flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-all disabled:opacity-50">
+              {isGeneratingPromptVocabs ? <Loader2 size={12} className="animate-spin" /> : <Tags size={12} />} 10 Từ Ăn Điểm
             </button>
-            <button onClick={() => { closeAllSidebars(); setShowStructureModal(true); }} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-rose-100 text-rose-700"><Columns size={12} /> Cấu trúc 40/60</button>
-            <button onClick={handleSuggestIdeas} disabled={isGeneratingIdeas} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-amber-100 text-amber-700 disabled:opacity-60 disabled:cursor-wait">
-              {isGeneratingIdeas ? <Loader2 size={12} className="animate-spin" /> : <Lightbulb size={12} />} 
-              {isGeneratingIdeas ? 'Đang phân tích...' : 'Mind Map Idea'}
+            <button onClick={() => { closeAllSidebars(); setShowStructureModal(true); }} className="text-[11px] font-bold flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-rose-100 text-rose-700 hover:bg-rose-200 transition-all">
+               <Columns size={12} /> Cấu trúc 40/60
             </button>
-            <button onClick={handleViewSampleFromPractice} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-blue-100 text-blue-700"><BookPlus size={12} /> Bài mẫu</button>
+            <button onClick={handleSuggestIdeas} disabled={isGeneratingIdeas} className="text-[11px] font-bold flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-200 transition-all disabled:opacity-50">
+              {isGeneratingIdeas ? <Loader2 size={12} className="animate-spin" /> : <Lightbulb size={12} />} Mind Map Idea
+            </button>
+            <button onClick={handleViewSampleFromPractice} className="text-[11px] font-bold flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition-all">
+               <BookPlus size={12} /> Bài mẫu
+            </button>
           </div>
         </div>
 
-        <div className="flex-1 p-3 relative flex flex-col">
-          <textarea ref={editorRef} className="w-full h-full resize-none outline-none text-slate-700 leading-relaxed text-[15px] lg:text-base placeholder-slate-400 custom-scrollbar" placeholder={getPlaceholderText()} value={essay} onChange={(e) => setEssay(e.target.value)} spellCheck={false} />
+        <div className="flex-1 p-4 relative flex flex-col">
+          <textarea 
+             ref={editorRef} 
+             className="w-full h-full resize-none outline-none text-slate-700 leading-loose text-[15px] lg:text-base placeholder-slate-400 custom-scrollbar font-medium" 
+             placeholder={getPlaceholderText()} 
+             value={essay} 
+             onChange={(e) => setEssay(e.target.value)} 
+             onKeyDown={handleEssayKeyDown}
+             spellCheck={false} 
+          />
         </div>
-        <div className="border-t border-slate-200 bg-slate-50 p-2.5 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
-             <div className="px-2 py-1 rounded bg-white border text-xs font-bold">{wordCount} từ</div>
-             <div className="bg-white px-2 py-1 rounded border flex items-center gap-1.5 text-xs font-mono font-bold text-slate-700">
+        <div className="border-t border-slate-200 bg-slate-50 p-3 flex items-center justify-between shrink-0 rounded-b-xl">
+          <div className="flex items-center gap-3">
+             <span className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-black flex items-center gap-1.5 transition-colors shadow-sm ${vocabHelpCount === 0 ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-indigo-600 text-white border-indigo-700'}`}>
+               <Wand2 size={12}/> Gợi ý từ: {vocabHelpCount}/3
+             </span>
+             <div className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-black text-slate-600 shadow-sm">{wordCount} từ</div>
+             <div className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 flex items-center gap-2 text-xs font-mono font-black text-slate-700 shadow-sm">
                 {formatTime(timeRemaining)}
-                <button onClick={() => setIsTimerRunning(!isTimerRunning)} className="p-0.5 hover:text-emerald-600 transition-colors">{isTimerRunning ? <Pause size={12}/> : <Play size={12}/>}</button>
-                <button onClick={() => { setIsTimerRunning(false); setTimeRemaining(40 * 60); }} className="p-0.5 text-slate-400 hover:text-slate-600 transition-colors" title="Reset thời gian"><RotateCcw size={12}/></button>
+                <button onClick={() => setIsTimerRunning(!isTimerRunning)} className="p-0.5 hover:text-emerald-600 transition-colors">{isTimerRunning ? <Pause size={14}/> : <Play size={14}/>}</button>
+                <button onClick={() => { setIsTimerRunning(false); setTimeRemaining(40 * 60); }} className="p-0.5 text-slate-400 hover:text-slate-600 transition-colors" title="Reset thời gian"><RotateCcw size={14}/></button>
              </div>
           </div>
           <div className="flex items-center gap-2">
-             <button onClick={handleParaphraseFromFooter} className="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-md font-bold text-xs">Sửa Câu</button>
-             <button onClick={handleEvaluate} disabled={isEvaluating || !essay.trim()} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-md font-bold text-xs flex items-center gap-1">
-                {isEvaluating ? <Loader2 size={12} className="animate-spin" /> : <Brain size={12} />} Chấm điểm
+             <button onClick={handleParaphraseFromFooter} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl font-bold text-xs shadow-md transition-colors">Sửa Câu</button>
+             <button onClick={handleEvaluate} disabled={isEvaluating || !essay.trim()} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-xl font-black text-xs flex items-center gap-1.5 shadow-md transition-all disabled:opacity-50">
+                {isEvaluating ? <Loader2 size={14} className="animate-spin" /> : <Brain size={14} />} Chấm điểm
              </button>
           </div>
         </div>
@@ -808,7 +941,7 @@ export default function App() {
               <div>
                  <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-1.5 text-sm"><ListChecks className="text-blue-500" size={16}/> Đánh giá theo tiêu chí</h4>
                  <div className="space-y-2.5">
-                     {[
+                    {[
                       { id: 'Task Response', score: evaluationResult.trScore, comment: evaluationResult.trComment },
                       { id: 'Coherence & Cohesion', score: evaluationResult.ccScore, comment: evaluationResult.ccComment },
                       { id: 'Lexical Resource', score: evaluationResult.lrScore, comment: evaluationResult.lrComment },
