@@ -90,14 +90,12 @@ const SAMPLE_PROMPTS = {
 };
 
 // --- GEMINI API HELPERS (DÙNG API KEY CỦA HỌC VIÊN) ---
-// LOẠI BỎ FALLBACK - TRUNG THÀNH VỚI 1 MODEL DUY NHẤT ĐỂ TRÁNH ẢO GIÁC LỖI 404
 const MODEL_NAME = "gemini-2.5-flash"; 
 
 async function fetchWithRetry(options, retries = 3) {
   const apiKey = localStorage.getItem('gemini_api_key');
   if (!apiKey) throw new Error("MISSING_API_KEY");
   
-  // Tăng thời gian giãn cách nếu Server bận (2s, 4s, 6s)
   const delays = [2000, 4000, 6000];
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey.trim()}`;
   
@@ -105,7 +103,6 @@ async function fetchWithRetry(options, retries = 3) {
     try {
       const response = await fetch(url, options);
       if (!response.ok) {
-        // Phân loại chính xác các mã lỗi từ Google
         if (response.status === 400 || response.status === 403) throw new Error("INVALID_API_KEY");
         if (response.status === 429) throw new Error("QUOTA_EXCEEDED");
         if (response.status === 404) throw new Error("MODEL_NOT_FOUND");
@@ -114,14 +111,12 @@ async function fetchWithRetry(options, retries = 3) {
       }
       return await response.json();
     } catch (error) {
-      // Nhóm lỗi nghiêm trọng -> Ngắt ngay lập tức, không thử lại
       if (error.message === "INVALID_API_KEY" || 
           error.message === "MISSING_API_KEY" || 
           error.message === "QUOTA_EXCEEDED" || 
           error.message === "MODEL_NOT_FOUND") {
         throw error;
       }
-      // Nhóm lỗi mạng / Server bận -> Thử lại theo thời gian delay
       if (i === retries - 1) throw error; 
       await new Promise(res => setTimeout(res, delays[i]));
     }
@@ -343,7 +338,6 @@ export default function App() {
     }
   };
 
-  // Cập nhật hàm xử lý lỗi bắt bệnh chuẩn xác
   const handleApiError = (error) => {
     if (error.message === "INVALID_API_KEY" || error.message === "MISSING_API_KEY") {
       setShowApiKeyModal(true);
@@ -684,7 +678,7 @@ export default function App() {
         <div className="bg-emerald-500 p-1.5 rounded-lg text-white"><PenTool size={18} /></div>
         <div className="flex flex-col">
           <h1 className="text-white font-bold text-base leading-tight">Max Academy</h1>
-          <p className="text-[10px] text-emerald-400 font-medium leading-tight">Pro Edition</p>
+          <p className="text-[10px] text-emerald-400 font-medium leading-tight">Crafted by Nguyễn Mai Bá Trường</p>
         </div>
       </div>
       
@@ -705,7 +699,7 @@ export default function App() {
       <div className="flex items-center gap-2 shrink-0">
         <div className="bg-slate-800 px-3 py-1.5 rounded-lg flex flex-col hidden sm:flex">
            <span className="text-[9px] text-slate-400 uppercase font-black">Học viên</span>
-           <span className="text-xs text-white font-medium truncate max-w-[120px]">{user.email}</span>
+           <span className="text-xs text-white font-medium truncate max-w-[120px]">{user?.email || 'Guest'}</span>
         </div>
         <button onClick={() => setShowApiKeyModal(true)} className="bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Đổi API Key"><Key size={14} /></button>
         <button onClick={() => setActiveTab('backup')} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Backup & Restore"><AlertTriangle size={14} /></button>
@@ -750,10 +744,19 @@ export default function App() {
           <textarea ref={promptRef} className="w-full bg-transparent text-slate-800 font-bold outline-none resize-y min-h-[40px] max-h-[120px] custom-scrollbar text-sm mt-2" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Nhập đề bài..." rows={2} />
           
           <div className="flex flex-wrap gap-1.5">
-            <button onClick={handleStartGuidedWriting} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors"><BookOpen size={12} /> Hướng dẫn viết</button>
-            <button onClick={() => { closeAllSidebars(); handleSuggestPromptVocab(); }} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-100 text-emerald-700"><Tags size={12} /> 10 Từ Ăn Điểm</button>
+            <button onClick={handleStartGuidedWriting} disabled={isGeneratingArticle} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors disabled:opacity-60 disabled:cursor-wait">
+              {isGeneratingArticle ? <Loader2 size={12} className="animate-spin" /> : <BookOpen size={12} />} 
+              {isGeneratingArticle ? 'Đang xử lý...' : 'Hướng dẫn viết'}
+            </button>
+            <button onClick={() => { closeAllSidebars(); handleSuggestPromptVocab(); }} disabled={isGeneratingPromptVocabs} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-100 text-emerald-700 disabled:opacity-60 disabled:cursor-wait">
+              {isGeneratingPromptVocabs ? <Loader2 size={12} className="animate-spin" /> : <Tags size={12} />} 
+              {isGeneratingPromptVocabs ? 'Đang trích xuất...' : '10 Từ Ăn Điểm'}
+            </button>
             <button onClick={() => { closeAllSidebars(); setShowStructureModal(true); }} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-rose-100 text-rose-700"><Columns size={12} /> Cấu trúc 40/60</button>
-            <button onClick={handleSuggestIdeas} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-amber-100 text-amber-700"><Lightbulb size={12} /> Mind Map Idea</button>
+            <button onClick={handleSuggestIdeas} disabled={isGeneratingIdeas} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-amber-100 text-amber-700 disabled:opacity-60 disabled:cursor-wait">
+              {isGeneratingIdeas ? <Loader2 size={12} className="animate-spin" /> : <Lightbulb size={12} />} 
+              {isGeneratingIdeas ? 'Đang phân tích...' : 'Mind Map Idea'}
+            </button>
             <button onClick={handleViewSampleFromPractice} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-blue-100 text-blue-700"><BookPlus size={12} /> Bài mẫu</button>
           </div>
         </div>
@@ -805,7 +808,7 @@ export default function App() {
               <div>
                  <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-1.5 text-sm"><ListChecks className="text-blue-500" size={16}/> Đánh giá theo tiêu chí</h4>
                  <div className="space-y-2.5">
-                    {[
+                     {[
                       { id: 'Task Response', score: evaluationResult.trScore, comment: evaluationResult.trComment },
                       { id: 'Coherence & Cohesion', score: evaluationResult.ccScore, comment: evaluationResult.ccComment },
                       { id: 'Lexical Resource', score: evaluationResult.lrScore, comment: evaluationResult.lrComment },
