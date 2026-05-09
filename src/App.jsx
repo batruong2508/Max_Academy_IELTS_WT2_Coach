@@ -89,7 +89,9 @@ const SAMPLE_PROMPTS = {
   health_gov: "Some people say that it is the responsibility of individuals to take care of their own health and diet. Others think that governments should make sure that their citizens are healthy. Discuss both views and give your opinion."
 };
 
-const MODEL_NAME = "gemini-1.5-flash"; 
+// --- GEMINI API HELPERS (DÙNG API KEY CỦA HỌC VIÊN) ---
+// QUAY LẠI MÔ HÌNH 2.5 MỚI NHẤT
+const MODEL_NAME = "gemini-2.5-flash"; 
 
 async function fetchWithRetry(options, retries = 3) {
   const apiKey = localStorage.getItem('gemini_api_key');
