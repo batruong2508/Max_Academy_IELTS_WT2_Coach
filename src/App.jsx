@@ -530,7 +530,10 @@ export default function App() {
 
     setVocabStep('analyzing');
     const topicName = TOPICS.find(t => t.id === newVocab.topic)?.name || '';
-    const systemInstruction = `Analyze the phrase: "${newVocab.phrase}" in the context of the IELTS topic "${topicName}". 
+    const subtopicName = newVocab.subtopic ? (SUBTOPICS[newVocab.topic]?.find(s => s.id === newVocab.subtopic)?.name || '') : '';
+    const contextTopic = subtopicName ? `${topicName} (specifically ${subtopicName})` : topicName;
+    
+    const systemInstruction = `Analyze the phrase: "${newVocab.phrase}" in the context of the IELTS topic "${contextTopic}". 
     CRITICAL INSTRUCTION: 1. Extract BASE FORM. 2. Provide 2 VERY SHORT examples (Band 7.5+, Max 15 words). 3. Wrap target vocab in <b> tags.
     Return strictly JSON: {"basePhrase": "...", "translation": "...", "example1": "...", "example2": "..."}`;
     
@@ -1183,8 +1186,15 @@ export default function App() {
                   <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setNewVocab({ id: v.id, topic: v.topicId || '', subtopic: v.subtopicId || '', phrase: v.phrase, basePhrase: v.phrase, translation: v.translation, example1: v.examples?.[0] || '', example2: v.examples?.[1] || '' }); setVocabStep('reviewed'); setShowVocabModal(true); }} className="text-slate-300 hover:text-indigo-500 p-1 bg-white/80 rounded" title="Sửa từ vựng này"><Edit3 size={16}/></button>
                   <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); triggerDelete('vocabulary', v.id); }} className="text-slate-300 hover:text-rose-500 p-1 bg-white/80 rounded"><Trash2 size={16}/></button>
                </div>
-               <div className="flex flex-wrap gap-1.5 mb-2">
-                 {v.topicId && <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md uppercase tracking-wider">{TOPICS.find(t => t.id === v.topicId)?.name?.split(' ')[0] || ''}</span>}
+               <div className="flex flex-wrap gap-1.5 mb-3">
+                 {v.topicId === 'general' ? (
+                    <span className="text-[9px] font-black text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider border border-slate-200 flex items-center gap-1"><Layers size={10}/> Đa chủ đề</span>
+                 ) : v.topicId ? (
+                    <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md uppercase tracking-wider border border-indigo-100 flex items-center gap-1"><Layers size={10}/> {TOPICS.find(t => t.id === v.topicId)?.name?.split(' ')[0] || v.topicId}</span>
+                 ) : null}
+                 {v.subtopicId && (
+                    <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md uppercase tracking-wider border border-emerald-100">{SUBTOPICS[v.topicId]?.find(st => st.id === v.subtopicId)?.name || v.subtopicId}</span>
+                 )}
                </div>
                <h3 className="text-base md:text-lg font-black text-indigo-800 mb-1 pr-4 leading-tight break-words">{v.phrase}</h3>
                <p className="text-xs text-slate-500 font-bold mb-3 break-words">{v.translation}</p>
@@ -1724,7 +1734,7 @@ export default function App() {
                          {TOPICS.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                       </select>
                       <select className="w-full p-3.5 border-2 rounded-xl text-sm font-bold bg-white focus:border-indigo-500 outline-none text-slate-700" value={newVocab.subtopic} onChange={(e) => setNewVocab({...newVocab, subtopic: e.target.value})} disabled={!newVocab.topic || newVocab.topic === 'general'}>
-                         <option value="">-- Chọn Chủ đề phụ --</option>
+                         <option value="">-- Chủ đề phụ (Tùy chọn) --</option>
                          {newVocab.topic && SUBTOPICS[newVocab.topic]?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                       </select>
                     </div>
@@ -1746,7 +1756,7 @@ export default function App() {
                            {TOPICS.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                         </select>
                         <select className="w-1/2 p-3 border-2 rounded-xl text-sm font-bold bg-white focus:border-emerald-500 outline-none text-slate-700" value={newVocab.subtopic} onChange={(e) => setNewVocab({...newVocab, subtopic: e.target.value})} disabled={!newVocab.topic || newVocab.topic === 'general'}>
-                           <option value="">-- Chủ đề phụ --</option>
+                           <option value="">-- Chủ đề phụ (Tùy chọn) --</option>
                            {newVocab.topic && SUBTOPICS[newVocab.topic]?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                      </div>
