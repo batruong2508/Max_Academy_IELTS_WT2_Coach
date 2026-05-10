@@ -4,7 +4,7 @@ import {
   Brain, PenTool, Layers, ArrowRight, ArrowLeft, Wand2, Download, Upload, Plus, Trash2, X, Save, Award, Clock, Settings, RefreshCw,
   ListChecks, Library, ChevronDown, ChevronUp, Tags, Gamepad2, CheckCircle2, XCircle, ShieldAlert, Columns, Lightbulb,
   PanelRightOpen, PanelRightClose, BarChart3, Wrench, Copy, TrendingDown, Target, Filter, Circle, Search, AlertCircle,
-  FileText, MessageSquareDiff, MessageSquare, Send, BookMarked, Languages, FastForward, Highlighter, BookPlus, LogOut, Key
+  FileText, MessageSquareDiff, MessageSquare, Send, BookMarked, Languages, FastForward, Highlighter, BookPlus, LogOut, Key, Zap
 } from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
@@ -89,8 +89,7 @@ const SAMPLE_PROMPTS = {
   health_gov: "Some people say that it is the responsibility of individuals to take care of their own health and diet. Others think that governments should make sure that their citizens are healthy. Discuss both views and give your opinion."
 };
 
-// --- GEMINI API HELPERS (DÙNG API KEY CỦA HỌC VIÊN) ---
-// QUAY LẠI MÔ HÌNH 2.5 MỚI NHẤT
+// --- GEMINI API HELPERS ---
 const MODEL_NAME = "gemini-2.5-flash"; 
 
 async function fetchWithRetry(options, retries = 3) {
@@ -112,7 +111,10 @@ async function fetchWithRetry(options, retries = 3) {
       }
       return await response.json();
     } catch (error) {
-      if (error.message === "INVALID_API_KEY" || error.message === "MISSING_API_KEY" || error.message === "QUOTA_EXCEEDED" || error.message === "MODEL_NOT_FOUND") {
+      if (error.message === "INVALID_API_KEY" || 
+          error.message === "MISSING_API_KEY" || 
+          error.message === "QUOTA_EXCEEDED" || 
+          error.message === "MODEL_NOT_FOUND") {
         throw error;
       }
       if (i === retries - 1) throw error; 
@@ -163,6 +165,7 @@ const getFullSentenceDetails = (fullText, errorText, correctedText) => {
 };
 
 export default function App() {
+  // --- AUTH & PERMISSION STATES ---
   const [user, setUser] = useState(null);
   const [isAuthorized, setIsAuthorized] = useState(null); 
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
@@ -179,12 +182,16 @@ export default function App() {
   const [wordCount, setWordCount] = useState(0);
   const [writingTarget, setWritingTarget] = useState('full');
   
-  // --- AI COPILOT (@@) STATES ---
-  const [vocabHelpCount, setVocabHelpCount] = useState(3);
-  const [vocabCooldown, setVocabCooldown] = useState(0);
-  const [vocabSuggestState, setVocabSuggestState] = useState({
-    show: false, loading: false, options: [], targetText: '', startIdx: -1, endIdx: -1
-  });
+  // AI STAMINA (RPM TRACKER)
+  const [apiTimestamps, setApiTimestamps] = useState([]);
+  
+  // AI COPILOT (@@ Tính năng)
+  const [copilotUses, setCopilotUses] = useState(3);
+  const [copilotCooldown, setCopilotCooldown] = useState(0);
+  const [showCopilotMenu, setShowCopilotMenu] = useState(false);
+  const [copilotOptions, setCopilotOptions] = useState([]);
+  const [isCopilotLoading, setIsCopilotLoading] = useState(false);
+  const [copilotWordInfo, setCopilotWordInfo] = useState({ word: '', index: -1 });
 
   // Sidebars & Modals
   const [selectedSample, setSelectedSample] = useState(null); 
@@ -259,6 +266,7 @@ export default function App() {
   const editorRef = useRef(null);
   const promptRef = useRef(null);
   const timerRef = useRef(null);
+  const copilotCooldownRef = useRef(0);
 
   const showToast = (message, type = 'info', duration = 3000) => {
     setToast({ visible: true, message, type });
@@ -271,7 +279,7 @@ export default function App() {
     setShowVocabSidebar(false);
   };
 
-  // Login & Whitelist Effect
+  // --- LOGIN & WHITELIST CHECK ---
   useEffect(() => {
     if (!auth) return;
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -296,7 +304,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Fetch API Key
+  // --- CHECK API KEY ---
   useEffect(() => {
     if (isAuthorized === true) {
       const key = localStorage.getItem('gemini_api_key');
@@ -304,7 +312,7 @@ export default function App() {
     }
   }, [isAuthorized]);
 
-  // Fetch Data
+  // --- FETCH USER DATA ---
   useEffect(() => {
     if (!user || isAuthorized !== true || !db || !appId) return;
     const samplesRef = collection(db, 'artifacts', appId, 'users', user.uid, 'sample_essays');
@@ -321,6 +329,41 @@ export default function App() {
     });
     return () => { unsubscribeSamples(); unsubscribeVocab(); unsubscribeEvals(); };
   }, [user, isAuthorized]);
+
+  // --- THUẬT TOÁN "CỬA SỔ TRƯỢT" (ROLLING WINDOW) KIỂM SOÁT RPM ---
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setApiTimestamps(prev => prev.filter(t => now - t < 60000)); 
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const checkAndRecordApiCall = () => {
+    if (apiTimestamps.length >= 15) {
+      showToast("⚡ Năng lượng AI đã cạn. Hệ thống đang tự hồi phục, vui lòng đợi vài giây!", "error", 5000);
+      return false; // Chặn lệnh gọi
+    }
+    
+    // Cảnh báo preemptive ở lần chạm mốc 14 (tương ứng với length === 13)
+    if (apiTimestamps.length === 13) { 
+      showToast("⚠️ Chú ý: Năng lượng AI sắp cạn (14/15). Hãy tạm dừng vài giây để hệ thống phục hồi nhé!", "error", 6000);
+    }
+
+    setApiTimestamps(prev => [...prev, Date.now()]);
+    return true; // Cho phép đi tiếp
+  };
+
+  // --- ĐỒNG HỒ COOLDOWN CHO COPILOT @@ ---
+  useEffect(() => {
+    if (copilotCooldown > 0) {
+       copilotCooldownRef.current = copilotCooldown;
+       const timer = setTimeout(() => setCopilotCooldown(c => c - 1), 1000);
+       return () => clearTimeout(timer);
+    } else {
+       copilotCooldownRef.current = 0;
+    }
+  }, [copilotCooldown]);
 
   const handleLogin = async () => {
     setIsLoggingIn(true);
@@ -357,32 +400,87 @@ export default function App() {
     }
   };
 
-  useEffect(() => { 
-    setWordCount(essay.trim().split(/\s+/).filter(word => word.length > 0).length); 
-    // Tự động Reset Copilot khi người dùng xóa hết bài
-    if (essay.trim() === '') {
-      setVocabHelpCount(3);
-      setVocabCooldown(0);
-    }
-  }, [essay]);
+  // --- TÍNH NĂNG AI COPILOT (GÕ TẮT @@) ---
+  const handleKeyDown = (e) => {
+    if ((e.key === 'Enter' || e.key === ' ' || e.key === 'Tab') && !showCopilotMenu) {
+      if (!editorRef.current) return;
+      const cursorPosition = editorRef.current.selectionEnd;
+      const textBeforeCursor = essay.substring(0, cursorPosition);
+      
+      const match = textBeforeCursor.match(/(?:^|\s)@@([^\s@]+)$/);
+      
+      if (match) {
+         e.preventDefault(); 
+         const vietnameseWord = match[1].replace(/_/g, ' '); 
+         const wordStartIndex = cursorPosition - match[0].length + (match[0].startsWith(' ') ? 1 : 0);
+         
+         if (copilotUses <= 0) {
+            return showToast("Bạn đã hết quyền trợ giúp từ vựng cho bài này. Hãy cố gắng vận dụng vốn từ của bản thân!", "error", 5000);
+         }
+         if (copilotCooldownRef.current > 0) {
+            return showToast(`⏳ Tính năng đang hồi chiêu. Vui lòng đợi ${copilotCooldownRef.current}s nữa.`, "info");
+         }
 
+         triggerCopilot(vietnameseWord, wordStartIndex, match[0].trim().length);
+      }
+    }
+  };
+
+  const triggerCopilot = async (vietnameseWord, startIndex, lengthToReplace) => {
+    if (!checkAndRecordApiCall()) return; 
+
+    setIsCopilotLoading(true);
+    setCopilotWordInfo({ word: vietnameseWord, index: startIndex, length: lengthToReplace });
+    
+    const contextStart = Math.max(0, startIndex - 150);
+    const context = essay.substring(contextStart, startIndex);
+
+    const systemPrompt = `You are an IELTS Task 2 Vocabulary Copilot. 
+    The student is writing: "...${context}[${vietnameseWord}]...".
+    Translate the Vietnamese concept "[${vietnameseWord}]" into EXACTLY 3 English academic collocations/phrases that fit the context perfectly.
+    Return strictly JSON: { "options": [ {"phrase": "...", "band": "7.0"}, {"phrase": "...", "band": "8.0"}, {"phrase": "...", "band": "8.5+"} ] }`;
+
+    try {
+      const result = await fetchWithRetry({
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: "Suggest words." }] }], systemInstruction: { parts: [{ text: systemPrompt }] }, generationConfig: { responseMimeType: "application/json" } })
+      });
+      const data = parseGeminiResponse(result.candidates[0].content.parts[0].text);
+      setCopilotOptions(data.options || []);
+      setShowCopilotMenu(true);
+      setCopilotUses(prev => prev - 1); 
+      setCopilotCooldown(20); 
+    } catch (error) {
+      handleApiError(error);
+    } finally {
+      setIsCopilotLoading(false);
+    }
+  };
+
+  const applyCopilotOption = (phrase) => {
+    const before = essay.substring(0, copilotWordInfo.index);
+    const after = essay.substring(copilotWordInfo.index + copilotWordInfo.length);
+    const newText = before + phrase + after;
+    setEssay(newText);
+    setShowCopilotMenu(false);
+    
+    setTimeout(() => {
+       if (editorRef.current) {
+          editorRef.current.focus();
+          const newPosition = copilotWordInfo.index + phrase.length;
+          editorRef.current.setSelectionRange(newPosition, newPosition);
+       }
+    }, 50);
+  };
+
+  // --- UI EFFECTS ---
+  useEffect(() => { setWordCount(essay.trim().split(/\s+/).filter(word => word.length > 0).length); }, [essay]);
   useEffect(() => { if (promptRef.current) { promptRef.current.style.height = 'auto'; promptRef.current.style.height = `${promptRef.current.scrollHeight}px`; } }, [prompt]);
-  
   useEffect(() => {
     if (isTimerRunning && timeRemaining > 0) timerRef.current = setInterval(() => setTimeRemaining(prev => prev - 1), 1000);
     else if (timeRemaining === 0) { setIsTimerRunning(false); clearInterval(timerRef.current); }
     return () => clearInterval(timerRef.current);
   }, [isTimerRunning, timeRemaining]);
-
-  // Bộ đếm lùi cho AI Copilot (Cooldown)
-  useEffect(() => {
-    let timer;
-    if (vocabCooldown > 0) {
-      timer = setInterval(() => setVocabCooldown(c => c - 1), 1000);
-    }
-    return () => clearInterval(timer);
-  }, [vocabCooldown]);
-
   useEffect(() => {
     const handleMouseMove = (e) => {
       if (!isDraggingRef.current) return;
@@ -400,7 +498,7 @@ export default function App() {
 
   useEffect(() => {
     const handleMouseUp = (e) => {
-      if (e.target.closest('#selection-popup') || e.target.closest('.locate-btn') || showApiKeyModal) return;
+      if (e.target.closest('#selection-popup') || e.target.closest('.locate-btn') || showApiKeyModal || showCopilotMenu) return;
       setTimeout(() => {
         let text = '';
         if (document.activeElement && document.activeElement.tagName === 'TEXTAREA') {
@@ -416,77 +514,9 @@ export default function App() {
     };
     document.addEventListener('mouseup', handleMouseUp);
     return () => document.removeEventListener('mouseup', handleMouseUp);
-  }, [showApiKeyModal]);
+  }, [showApiKeyModal, showCopilotMenu]);
 
-  const handleEssayKeyDown = async (e) => {
-    // Chỉ kích hoạt khi bấm Enter hoặc Tab
-    if (e.key === 'Enter' || e.key === 'Tab') {
-      const cursorPosition = e.target.selectionStart;
-      const textBeforeCursor = essay.substring(0, cursorPosition);
-      
-      // Bắt chữ @@ và chuỗi text tiếng việt ngay trước con trỏ chuột
-      const match = textBeforeCursor.match(/@@([^@\n]+)$/);
-
-      if (match) {
-        e.preventDefault(); // Chặn việc xuống dòng hay nhảy Tab
-        
-        const targetVi = match[1].trim(); // Chữ tiếng Việt cần dịch
-        
-        if (vocabHelpCount <= 0) {
-          return showToast("Bạn đã hết quyền trợ giúp từ vựng cho bài này. Hãy cố gắng vận dụng vốn từ của bản thân để đi thi thật nhé!", "error", 5000);
-        }
-        
-        if (vocabCooldown > 0) {
-          return showToast(`⏳ Vui lòng đợi ${vocabCooldown} giây nữa để dùng tiếp trợ lý từ vựng.`, "error");
-        }
-
-        // Bật UI Loading
-        setVocabSuggestState({ show: true, loading: true, options: [], targetText: targetVi, startIdx: match.index, endIdx: cursorPosition });
-        
-        // Trích xuất văn cảnh (Lấy 200 ký tự trước dấu @@)
-        const context = textBeforeCursor.slice(Math.max(0, match.index - 200), match.index);
-
-        const systemInstruction = `You are an IELTS Writing expert. The student is writing an essay on: "${prompt}". 
-        They need to translate/paraphrase the Vietnamese phrase "${targetVi}" into an English Band 7.5+ academic collocation or phrase.
-        Here is the context of their sentence so far: "...${context}"
-        Return exactly 3 short, precise English options (maximum 3-5 words each). 
-        Return strictly JSON: { "options": ["option 1", "option 2", "option 3"] }. DO NOT output raw newlines.`;
-
-        try {
-          const result = await fetchWithRetry({
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: "Suggest 3 paraphrase options." }] }], systemInstruction: { parts: [{ text: systemInstruction }] }, generationConfig: { responseMimeType: "application/json" } })
-          });
-          const aiData = parseGeminiResponse(result.candidates[0].content.parts[0].text);
-          
-          setVocabSuggestState(prev => ({ ...prev, loading: false, options: aiData.options || [] }));
-          setVocabHelpCount(prev => prev - 1);
-          setVocabCooldown(20);
-
-        } catch (err) {
-          handleApiError(err);
-          setVocabSuggestState({ show: false, loading: false, options: [], targetText: '', startIdx: -1, endIdx: -1 });
-        }
-      }
-    }
-  };
-
-  const handleApplySuggestion = (chosenText) => {
-    const { startIdx, endIdx } = vocabSuggestState;
-    const newEssay = essay.substring(0, startIdx) + chosenText + essay.substring(endIdx);
-    setEssay(newEssay);
-    setVocabSuggestState({ show: false, loading: false, options: [], targetText: '', startIdx: -1, endIdx: -1 });
-    
-    // Tự động focus lại vào khung viết bài và đặt nháy chuột ngay sau chữ vừa chèn
-    setTimeout(() => {
-      if (editorRef.current) {
-         editorRef.current.focus();
-         const newCursorPos = startIdx + chosenText.length;
-         editorRef.current.setSelectionRange(newCursorPos, newCursorPos);
-      }
-    }, 50);
-  };
-
+  // --- ACTIONS WITH ERROR HANDLING ---
   const handleOpenReviewVocab = () => {
     setNewVocab({ topic: selectedTopic || '', subtopic: selectedSubtopic || '', phrase: selectionPopup.text, basePhrase: '', translation: '', example1: '', example2: '' });
     setVocabStep('init'); setShowVocabModal(true); setSelectionPopup({ show: false, text: '', x: 0, y: 0 });
@@ -496,6 +526,8 @@ export default function App() {
   const handleAnalyzeVocab = async () => {
     if (!newVocab.topic) return showToast("Vui lòng chọn Chủ đề để AI hiểu ngữ cảnh!", "error");
     if (!newVocab.phrase.trim()) return showToast("Vui lòng nhập từ vựng cần phân tích!", "error");
+    if (!checkAndRecordApiCall()) return;
+
     setVocabStep('analyzing');
     const topicName = TOPICS.find(t => t.id === newVocab.topic)?.name || '';
     const systemInstruction = `Analyze the phrase: "${newVocab.phrase}" in the context of the IELTS topic "${topicName}". 
@@ -545,17 +577,16 @@ export default function App() {
 
   const handleGeneratePrompt = () => {
     const randomPrompt = sampleEssays.length > 0 ? sampleEssays[Math.floor(Math.random() * sampleEssays.length)].prompt : (selectedSubtopic && SAMPLE_PROMPTS[selectedSubtopic] ? SAMPLE_PROMPTS[selectedSubtopic] : "Some people think that technology is driving people apart, while others believe it is bringing people closer together. Discuss both views and give your opinion.");
-    setPrompt(randomPrompt); 
-    setEssay(''); 
-    setTimeRemaining(40 * 60); setIsTimerRunning(false); setEvaluationResult(null); 
-    // Reset Copilot
-    setVocabHelpCount(3); setVocabCooldown(0); setVocabSuggestState({ show: false, loading: false, options: [], targetText: '', startIdx: -1, endIdx: -1 });
-    closeAllSidebars();
+    setPrompt(randomPrompt); setEssay(''); setTimeRemaining(40 * 60); setIsTimerRunning(false); setEvaluationResult(null); closeAllSidebars();
+    setCopilotUses(3); 
   };
 
   const handleSuggestIdeas = async () => {
     if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước.", "error");
-    setShowIdeasModal(true); if (mindMapData) return; setIsGeneratingIdeas(true);
+    setShowIdeasModal(true); if (mindMapData) return; 
+    if (!checkAndRecordApiCall()) { setShowIdeasModal(false); return; } 
+    
+    setIsGeneratingIdeas(true);
     const systemInstruction = `You are an IELTS Writing Task 2 expert. Generate an EGOSFI mind map for this prompt: "${prompt}".
     Structure ideas into View 40 (opposing) and View 60 (supporting). Use E, G, O, S, F, I categories.
     Return strictly JSON: { "centralIdea": "...", "view40": {"title": "...", "ideas": [{"letter": "S", "category": "...", "keyword": "...", "explanation": "..."}]}, "view60": {...} }`;
@@ -577,7 +608,10 @@ export default function App() {
 
   const handleSuggestPromptVocab = async () => { 
     if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước.", "error");
-    closeAllSidebars(); setShowVocabSidebar(true); if (suggestedPromptVocabs.length > 0) return; setIsGeneratingPromptVocabs(true);
+    closeAllSidebars(); setShowVocabSidebar(true); if (suggestedPromptVocabs.length > 0) return; 
+    if (!checkAndRecordApiCall()) { setShowVocabSidebar(false); return; } 
+    
+    setIsGeneratingPromptVocabs(true);
     const systemInstruction = `Suggest exactly 10 academic phrases for this prompt: "${prompt}". Return JSON array of objects with {phrase, meaning, source}.`;
     try {
       const result = await fetchWithRetry({
@@ -590,7 +624,10 @@ export default function App() {
 
   const handleStartGuidedWriting = async () => {
     if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước!", "error");
-    setShowGuidedModal(true); setGuidedStep('reading'); setGuidedArticle(null); setGuidedExercise(null); setGuidedAnswers({}); setIsGeneratingArticle(true);
+    setShowGuidedModal(true); setGuidedStep('reading'); setGuidedArticle(null); setGuidedExercise(null); setGuidedAnswers({}); 
+    if (!checkAndRecordApiCall()) { setShowGuidedModal(false); return; } 
+
+    setIsGeneratingArticle(true);
     const matchedSamples = sampleEssays.filter(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim()).slice(0, 3);
     const sampleText = matchedSamples.length > 0 ? matchedSamples.map((s, i) => `Sample ${i+1}:\n${s.content}`).join('\n\n') : "No specific samples available.";
     const systemInstruction = `Prompt: "${prompt}". Samples: ${sampleText}. 
@@ -607,6 +644,7 @@ export default function App() {
   };
 
   const handleGenerateGuidedExercise = async () => {
+    if (!checkAndRecordApiCall()) return; 
     setGuidedStep('exercise'); setIsGeneratingExercise(true); setGuidedAnswers({}); 
     const systemInstruction = `Based on this article: "${guidedArticle.title}". Content: "${guidedArticle.content}". 
     Create a "Summary Completion" exercise. 1 short paragraph (80-100 words), 5 missing phrases ("___") strictly from bolded collocations. Provide 4 distractors.
@@ -622,6 +660,8 @@ export default function App() {
 
   const handleParaphrase = async () => { 
     if (!paraphraseInput.trim()) return;
+    if (!checkAndRecordApiCall()) return; 
+    
     setIsParaphrasing(true); setParaphraseResult(null);
     const systemPrompt = `Paraphrase the following sentence in 2 styles: Band 6.5 and Band 7.5+. Input: "${paraphraseInput}". Return JSON: { "band65": "...", "band75": "..." }.`;
     try {
@@ -635,14 +675,23 @@ export default function App() {
 
   const handleEvaluate = async () => {
     if (wordCount < 30) return showToast("Vui lòng viết ít nhất 30 từ để AI có thể đánh giá.", "error");
-    setIsEvaluating(true); setIsTimerRunning(false); setActiveCommentIndex(null); setCorrectionAttempts({});
-    // Reset Copilot
-    setVocabHelpCount(3); setVocabCooldown(0); 
+    if (!checkAndRecordApiCall()) return;
 
+    setIsEvaluating(true); setIsTimerRunning(false); setActiveCommentIndex(null); setCorrectionAttempts({});
+    setCopilotUses(3); 
+    
     let targetInstruction = writingTarget === 'full' ? `Grade the FULL ESSAY.` : writingTarget === 'intro_conc' ? `The student is ONLY writing the INTRODUCTION and CONCLUSION. Evaluate based on Paraphrasing and Thesis.` : `The student is ONLY writing BODY PARAGRAPH(S). Evaluate based on flow, coherence and topic sentences.`;
-    const systemInstruction = `You are an IELTS Writing Task 2 examiner. ${targetInstruction} 
-    Provide 4 criteria scores, specific comments, and detailedCorrections: [{original, corrected, explanation}].
-    Return strictly JSON: { "overallBand": 6.5, "trScore": 6.0, "trComment": "...", "ccScore": 7.0, "ccComment": "...", "lrScore": 6.0, "lrComment": "...", "graScore": 6.0, "graComment": "...", "detailedCorrections": [...], "polishedEssay": "Band 8.0 polished version of what student wrote." }`;
+    
+    // ÁP DỤNG LUẬT CHẤM ĐIỂM (ROUND DOWN) THEO BAND DESCRIPTORS CHUẨN CỦA IELTS
+    const systemInstruction = `You are a strict and expert IELTS Writing Task 2 examiner. 
+    1. SCORING CRITERIA: Grade the essay based STRICTLY on the official IELTS Writing Task 2 Band Descriptors (Public Version) for Task Response (TR), Coherence & Cohesion (CC), Lexical Resource (LR), and Grammatical Range & Accuracy (GRA).
+    2. SCORING RULE (CRITICAL): Calculate the average of the 4 criteria. For the final Overall Band, you MUST ROUND DOWN to the nearest 0.5 or whole band. 
+       - Example: TR=6, CC=7, LR=7, GRA=7 (Average 6.75) => Overall Band MUST be 6.5.
+       - Example: TR=6, CC=6, LR=6, GRA=7 (Average 6.25) => Overall Band MUST be 6.0.
+       - Example: TR=6, CC=6, LR=7, GRA=7 (Average 6.5) => Overall Band MUST be 6.5.
+    3. TARGET: ${targetInstruction} Provide specific comments for each criterion based on the descriptors, and detailedCorrections: [{original, corrected, explanation}].
+    4. Return strictly JSON: { "overallBand": 6.5, "trScore": 6.0, "trComment": "...", "ccScore": 7.0, "ccComment": "...", "lrScore": 6.0, "lrComment": "...", "graScore": 6.0, "graComment": "...", "detailedCorrections": [...], "polishedEssay": "Band 8.0 polished version of what student wrote." }`;
+    
     try {
       const result = await fetchWithRetry({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -657,6 +706,8 @@ export default function App() {
   const handleCheckCorrection = async (idx) => {
     const attempt = correctionAttempts[idx]?.text;
     if (!attempt || !attempt.trim()) return showToast("Vui lòng viết lại câu trước khi check.", "error");
+    if (!checkAndRecordApiCall()) return;
+
     const correctionData = evaluationResult.detailedCorrections[idx];
     setCorrectionAttempts(prev => ({ ...prev, [idx]: { ...prev[idx], isSubmitting: true } }));
     const systemPrompt = `Evaluate if the student successfully fixed this error: "${correctionData.original}". Student's rewrite: "${attempt}". Return strictly JSON: { "isCorrect": true/false, "feedback": "Brief feedback max 15 words" }.`;
@@ -673,6 +724,8 @@ export default function App() {
   const handleStartQuiz = async () => {
     const filteredVocabs = vocabularies.filter(v => (filterQuizTopic ? v.topicId === filterQuizTopic : true) && (filterQuizSubtopic ? v.subtopicId === filterQuizSubtopic : true));
     if (filteredVocabs.length < 1) return showToast("Không có từ vựng nào. Hãy thêm từ mới nhé!", "error");
+    if (!checkAndRecordApiCall()) return; 
+
     setIsGeneratingQuiz(true); setQuizAnswers({}); setQuizResults(null); setRevealedHints({});
     const selectedVocabs = [...filteredVocabs].sort(() => 0.5 - Math.random()).slice(0, 10).map(v => v.basePhrase || v.phrase);
     const systemInstruction = `Create a fill-in-the-blank exercise for exactly these words: [${selectedVocabs.join(', ')}]. 
@@ -687,6 +740,7 @@ export default function App() {
     } catch (error) { handleApiError(error); } finally { setIsGeneratingQuiz(false); }
   };
 
+  // --- STANDARD HELPERS ---
   const formatTime = (seconds) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
   const handleLocateError = (originalText) => {
     if (!editorRef.current) return;
@@ -731,6 +785,7 @@ export default function App() {
     } catch (e) { showToast("Dữ liệu JSON không hợp lệ.", "error"); } finally { setIsRestoring(false); }
   };
 
+  // --- RENDER CONDITIONALS ---
   if (!user) {
     return (
       <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
@@ -767,6 +822,7 @@ export default function App() {
     );
   }
 
+  // --- RENDER APP COMPONENTS ---
   const renderTopNav = () => (
     <div className="w-full bg-slate-900 text-slate-300 flex flex-wrap lg:flex-nowrap items-center justify-between px-4 py-2 shrink-0 shadow-md z-20 relative gap-3">
       <div className="flex items-center gap-3 shrink-0">
@@ -805,53 +861,26 @@ export default function App() {
 
   const renderPracticeTab = () => {
     const getPlaceholderText = () => {
-        if (writingTarget === 'intro_conc') return "Viết phần Mở bài và Kết bài tại đây... Gõ @@[Tiếng Việt] rồi ấn Tab để AI trợ giúp từ vựng.";
-        if (writingTarget === 'body') return "Viết phần Thân bài tại đây... Gõ @@[Tiếng Việt] rồi ấn Tab để AI trợ giúp từ vựng.";
-        return "Viết trọn vẹn bài essay tại đây... Gõ @@[Tiếng Việt] rồi ấn Tab để AI trợ giúp từ vựng.";
+        const hint = "\n\n💡 MẸO: Gõ @@[từ tiếng việt] và bấm Dấu cách để AI gợi ý từ vựng cao cấp! (Ví dụ: @@bảo vệ môi trường)";
+        if (writingTarget === 'intro_conc') return "Viết phần Mở bài và Kết bài của bạn tại đây..." + hint;
+        if (writingTarget === 'body') return "Viết phần Thân bài (Body) của bạn tại đây..." + hint;
+        return "Viết trọn vẹn bài essay của bạn tại đây..." + hint;
     };
 
     return (
-    <div className="flex-1 flex p-2 lg:p-3 gap-3 min-h-0">
+    <div className="flex-1 flex p-2 lg:p-3 gap-3 min-h-0 relative">
       <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col min-w-0 relative">
         
-        {/* --- AI COPILOT POPUP --- */}
-        {vocabSuggestState.show && (
-           <div className="absolute inset-0 bg-slate-900/5 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-xl p-4 animate-fadeIn">
-              <div className="bg-white p-5 rounded-2xl shadow-2xl border border-indigo-100 w-full max-w-sm animate-slideUp">
-                 <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
-                    <h4 className="font-black text-indigo-700 flex items-center gap-2 text-sm uppercase tracking-wide"><Wand2 size={16}/> AI Copilot</h4>
-                    {!vocabSuggestState.loading && <button onClick={() => setVocabSuggestState({ ...vocabSuggestState, show: false })} className="text-slate-400 hover:text-rose-500 bg-slate-50 p-1 rounded-md"><X size={16}/></button>}
-                 </div>
-                 
-                 {vocabSuggestState.loading ? (
-                    <div className="flex flex-col items-center justify-center py-6 text-indigo-600 gap-3">
-                       <Loader2 className="animate-spin" size={32}/>
-                       <span className="text-xs font-bold animate-pulse">Đang phân tích ngữ cảnh...</span>
-                    </div>
-                 ) : (
-                    <div className="space-y-3">
-                       <p className="text-xs text-slate-500 mb-3 font-medium">Chọn 1 cụm từ (Band 7.5+) để thay thế cho <strong className="text-rose-600 bg-rose-50 px-1 rounded">"{vocabSuggestState.targetText}"</strong>:</p>
-                       {vocabSuggestState.options.map((opt, i) => (
-                          <button key={i} onClick={() => handleApplySuggestion(opt)} className="w-full text-left p-3 rounded-xl border-2 border-slate-100 hover:border-indigo-400 hover:bg-indigo-50 hover:shadow-md font-bold text-sm text-slate-800 transition-all group">
-                             <span className="text-indigo-400 mr-2 opacity-50 group-hover:opacity-100 font-black">{i+1}.</span> {opt}
-                          </button>
-                       ))}
-                    </div>
-                 )}
-              </div>
-           </div>
-        )}
-
-        <div className="border-b border-slate-100 p-2 lg:p-3 bg-slate-50 flex flex-col gap-2 shrink-0 rounded-t-xl">
+        <div className="border-b border-slate-100 p-2 lg:p-3 bg-slate-50 flex flex-col gap-2 shrink-0">
           <div className="flex items-center justify-between gap-3 overflow-x-auto [&::-webkit-scrollbar]:hidden">
             <div className="flex items-center gap-1.5 shrink-0">
-              <select className="bg-white border border-slate-200 rounded-md px-2 py-1 outline-none text-xs w-[120px] font-medium" value={selectedTopic} onChange={(e) => {setSelectedTopic(e.target.value); setSelectedSubtopic('');}}>
+              <select className="bg-white border border-slate-200 rounded-md px-2 py-1 outline-none text-xs w-[120px]" value={selectedTopic} onChange={(e) => {setSelectedTopic(e.target.value); setSelectedSubtopic('');}}>
                 <option value="">Chủ đề</option> {TOPICS.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
-              <select className="bg-white border border-slate-200 rounded-md px-2 py-1 outline-none text-xs w-[120px] font-medium" value={selectedSubtopic} onChange={(e) => setSelectedSubtopic(e.target.value)} disabled={!selectedTopic || selectedTopic === 'general'}>
+              <select className="bg-white border border-slate-200 rounded-md px-2 py-1 outline-none text-xs w-[120px]" value={selectedSubtopic} onChange={(e) => setSelectedSubtopic(e.target.value)} disabled={!selectedTopic || selectedTopic === 'general'}>
                 <option value="">Chủ đề phụ</option> {selectedTopic && SUBTOPICS[selectedTopic]?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
-              <button onClick={handleGeneratePrompt} className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 px-2.5 py-1 rounded-md font-bold text-xs flex items-center gap-1 transition-colors"><RotateCcw size={12} /> Tạo Đề</button>
+              <button onClick={handleGeneratePrompt} className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 px-2.5 py-1 rounded-md font-bold text-xs flex items-center gap-1"><RotateCcw size={12} /> Tạo Đề</button>
             </div>
             
             <div className="flex items-center gap-1.5 shrink-0 ml-auto">
@@ -864,54 +893,88 @@ export default function App() {
             </div>
           </div>
 
-          <textarea ref={promptRef} className="w-full bg-transparent text-slate-800 font-black outline-none resize-y min-h-[40px] max-h-[120px] custom-scrollbar text-sm mt-2 leading-relaxed" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Nhập đề bài..." rows={2} />
+          <textarea ref={promptRef} className="w-full bg-transparent text-slate-800 font-bold outline-none resize-y min-h-[40px] max-h-[120px] custom-scrollbar text-sm mt-2" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Nhập đề bài..." rows={2} />
           
-          <div className="flex flex-wrap gap-1.5 mt-1">
-            <button onClick={handleStartGuidedWriting} disabled={isGeneratingArticle} className="text-[11px] font-bold flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-all disabled:opacity-50">
-              {isGeneratingArticle ? <Loader2 size={12} className="animate-spin" /> : <BookOpen size={12} />} Hướng dẫn viết
+          <div className="flex flex-wrap gap-1.5">
+            <button onClick={handleStartGuidedWriting} disabled={isGeneratingArticle} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors disabled:opacity-50">
+              {isGeneratingArticle ? <Loader2 size={12} className="animate-spin"/> : <BookOpen size={12} />} Hướng dẫn viết
             </button>
-            <button onClick={() => { closeAllSidebars(); handleSuggestPromptVocab(); }} disabled={isGeneratingPromptVocabs} className="text-[11px] font-bold flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-all disabled:opacity-50">
-              {isGeneratingPromptVocabs ? <Loader2 size={12} className="animate-spin" /> : <Tags size={12} />} 10 Từ Ăn Điểm
+            <button onClick={() => { closeAllSidebars(); handleSuggestPromptVocab(); }} disabled={isGeneratingPromptVocabs} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-100 text-emerald-700 disabled:opacity-50">
+              {isGeneratingPromptVocabs ? <Loader2 size={12} className="animate-spin"/> : <Tags size={12} />} 10 Từ Ăn Điểm
             </button>
-            <button onClick={() => { closeAllSidebars(); setShowStructureModal(true); }} className="text-[11px] font-bold flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-rose-100 text-rose-700 hover:bg-rose-200 transition-all">
-               <Columns size={12} /> Cấu trúc 40/60
+            <button onClick={() => { closeAllSidebars(); setShowStructureModal(true); }} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-rose-100 text-rose-700"><Columns size={12} /> Cấu trúc 40/60</button>
+            <button onClick={handleSuggestIdeas} disabled={isGeneratingIdeas} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-amber-100 text-amber-700 disabled:opacity-50">
+              {isGeneratingIdeas ? <Loader2 size={12} className="animate-spin"/> : <Lightbulb size={12} />} Mind Map Idea
             </button>
-            <button onClick={handleSuggestIdeas} disabled={isGeneratingIdeas} className="text-[11px] font-bold flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-200 transition-all disabled:opacity-50">
-              {isGeneratingIdeas ? <Loader2 size={12} className="animate-spin" /> : <Lightbulb size={12} />} Mind Map Idea
-            </button>
-            <button onClick={handleViewSampleFromPractice} className="text-[11px] font-bold flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition-all">
-               <BookPlus size={12} /> Bài mẫu
-            </button>
+            <button onClick={handleViewSampleFromPractice} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-blue-100 text-blue-700"><BookPlus size={12} /> Bài mẫu</button>
           </div>
         </div>
 
-        <div className="flex-1 p-4 relative flex flex-col">
+        <div className="flex-1 p-3 relative flex flex-col relative">
           <textarea 
              ref={editorRef} 
-             className="w-full h-full resize-none outline-none text-slate-700 leading-loose text-[15px] lg:text-base placeholder-slate-400 custom-scrollbar font-medium" 
+             className="w-full h-full resize-none outline-none text-slate-700 leading-relaxed text-[15px] lg:text-base placeholder-slate-400 custom-scrollbar relative z-0" 
              placeholder={getPlaceholderText()} 
              value={essay} 
-             onChange={(e) => setEssay(e.target.value)} 
-             onKeyDown={handleEssayKeyDown}
+             onChange={(e) => {
+                 setEssay(e.target.value);
+                 if (e.target.value.trim() === '') setCopilotUses(3); 
+             }} 
+             onKeyDown={handleKeyDown}
              spellCheck={false} 
           />
+          
+          {/* LỚP PHỦ HIỂN THỊ MENU COPILOT */}
+          {(isCopilotLoading || showCopilotMenu) && (
+            <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-center animate-fadeIn rounded-b-xl">
+               <div className="bg-white p-5 rounded-2xl shadow-2xl border border-slate-200 w-full max-w-sm">
+                  {isCopilotLoading ? (
+                     <div className="text-center py-4 flex flex-col items-center justify-center text-indigo-600">
+                        <Loader2 className="animate-spin mb-3" size={32}/>
+                        <p className="font-bold text-sm">AI đang tìm cụm từ cho: <span className="text-rose-500">"{copilotWordInfo.word}"</span></p>
+                        <p className="text-xs text-slate-400 mt-2">Dựa trên ngữ cảnh bài viết của bạn...</p>
+                     </div>
+                  ) : (
+                     <div className="animate-slideUp">
+                        <div className="flex justify-between items-center mb-3">
+                           <h4 className="font-black text-slate-700 text-sm flex items-center gap-1.5"><Sparkles size={16} className="text-amber-500"/> Chọn từ thay thế:</h4>
+                           <button onClick={() => setShowCopilotMenu(false)} className="text-slate-400 hover:text-rose-500 p-1 bg-slate-100 rounded-md"><X size={14}/></button>
+                        </div>
+                        <div className="space-y-2">
+                           {copilotOptions.map((opt, i) => (
+                              <button key={i} onClick={() => applyCopilotOption(opt.phrase)} className="w-full text-left p-3 rounded-xl border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50 transition-all flex justify-between items-center group">
+                                 <span className="font-bold text-indigo-900 group-hover:text-indigo-700">{opt.phrase}</span>
+                                 <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md">Band {opt.band}</span>
+                              </button>
+                           ))}
+                        </div>
+                     </div>
+                  )}
+               </div>
+            </div>
+          )}
         </div>
-        <div className="border-t border-slate-200 bg-slate-50 p-3 flex items-center justify-between shrink-0 rounded-b-xl">
-          <div className="flex items-center gap-3">
-             <span className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-black flex items-center gap-1.5 transition-colors shadow-sm ${vocabHelpCount === 0 ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-indigo-600 text-white border-indigo-700'}`}>
-               <Wand2 size={12}/> Gợi ý từ: {vocabHelpCount}/3
-             </span>
-             <div className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-black text-slate-600 shadow-sm">{wordCount} từ</div>
-             <div className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 flex items-center gap-2 text-xs font-mono font-black text-slate-700 shadow-sm">
+        
+        <div className="border-t border-slate-200 bg-slate-50 p-2.5 flex flex-wrap items-center justify-between shrink-0 gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+             <div className="px-2 py-1 rounded bg-white border flex items-center gap-1.5 text-xs font-bold text-slate-700" title="Giới hạn 15 lệnh/phút của Google">
+                <Zap size={14} className={apiTimestamps.length >= 12 ? "text-rose-500" : "text-amber-500"} />
+                {15 - apiTimestamps.length}/15
+             </div>
+             <div className="px-2 py-1 rounded bg-white border text-xs font-bold">{wordCount} từ</div>
+             <div className="bg-white px-2 py-1 rounded border flex items-center gap-1.5 text-xs font-mono font-bold text-slate-700">
                 {formatTime(timeRemaining)}
-                <button onClick={() => setIsTimerRunning(!isTimerRunning)} className="p-0.5 hover:text-emerald-600 transition-colors">{isTimerRunning ? <Pause size={14}/> : <Play size={14}/>}</button>
-                <button onClick={() => { setIsTimerRunning(false); setTimeRemaining(40 * 60); }} className="p-0.5 text-slate-400 hover:text-slate-600 transition-colors" title="Reset thời gian"><RotateCcw size={14}/></button>
+                <button onClick={() => setIsTimerRunning(!isTimerRunning)} className="p-0.5 hover:text-emerald-600 transition-colors">{isTimerRunning ? <Pause size={12}/> : <Play size={12}/>}</button>
+                <button onClick={() => { setIsTimerRunning(false); setTimeRemaining(40 * 60); }} className="p-0.5 text-slate-400 hover:text-slate-600 transition-colors" title="Reset thời gian"><RotateCcw size={12}/></button>
+             </div>
+             <div className="px-2 py-1 rounded bg-indigo-50 border border-indigo-100 flex items-center gap-1 text-xs font-bold text-indigo-700">
+                🪄 Gợi ý từ (@@): {copilotUses}/3
              </div>
           </div>
-          <div className="flex items-center gap-2">
-             <button onClick={handleParaphraseFromFooter} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl font-bold text-xs shadow-md transition-colors">Sửa Câu</button>
-             <button onClick={handleEvaluate} disabled={isEvaluating || !essay.trim()} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-xl font-black text-xs flex items-center gap-1.5 shadow-md transition-all disabled:opacity-50">
-                {isEvaluating ? <Loader2 size={14} className="animate-spin" /> : <Brain size={14} />} Chấm điểm
+          <div className="flex items-center gap-2 ml-auto">
+             <button onClick={handleParaphraseFromFooter} className="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-md font-bold text-xs">Sửa Câu</button>
+             <button onClick={handleEvaluate} disabled={isEvaluating || !essay.trim()} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-md font-bold text-xs flex items-center gap-1">
+                {isEvaluating ? <Loader2 size={12} className="animate-spin" /> : <Brain size={12} />} Chấm điểm
              </button>
           </div>
         </div>
@@ -1245,12 +1308,10 @@ export default function App() {
   );
 
   const renderTrackerTab = () => {
-    // Tính toán số liệu thống kê động
     const totalEssays = evaluationsHistory.length;
     let avgTR = 0, avgCC = 0, avgLR = 0, avgGRA = 0, highestBand = 0;
 
     if (totalEssays > 0) {
-      // Lọc các bài có đầy đủ 4 tiêu chí
       const validEvals = evaluationsHistory.filter(e => e.trScore && e.ccScore && e.lrScore && e.graScore);
       if (validEvals.length > 0) {
          avgTR = (validEvals.reduce((sum, e) => sum + Number(e.trScore), 0) / validEvals.length).toFixed(1);
@@ -1781,8 +1842,9 @@ export default function App() {
 
       {toast.visible && (
         <div className="fixed top-6 inset-x-0 z-[200] flex justify-center pointer-events-none">
-          <div className="px-8 py-3.5 rounded-2xl shadow-2xl bg-slate-800 text-white font-black text-sm animate-slideUp border border-slate-700 flex items-center gap-3 pointer-events-auto">
-            <Sparkles className="text-emerald-400" size={18}/> {toast.message}
+          <div className={`px-8 py-3.5 rounded-2xl shadow-2xl ${toast.type === 'error' ? 'bg-rose-600 text-white border-rose-700' : 'bg-slate-800 text-white border-slate-700'} font-black text-sm animate-slideUp border flex items-center gap-3 pointer-events-auto`}>
+            {toast.type === 'error' ? <AlertTriangle className="text-white" size={18}/> : <Sparkles className="text-emerald-400" size={18}/>} 
+            {toast.message}
           </div>
         </div>
       )}
