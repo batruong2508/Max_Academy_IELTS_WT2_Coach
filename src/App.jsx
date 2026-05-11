@@ -203,7 +203,7 @@ export default function App() {
   const [showParaphraseModal, setShowParaphraseModal] = useState(false);
   const [showSampleModal, setShowSampleModal] = useState(false);
   const [showVocabModal, setShowVocabModal] = useState(false);
-  const [showGuidedModal, setShowGuidedModal] = useState(false); // Đảm bảo Modal được kích hoạt
+  const [showGuidedModal, setShowGuidedModal] = useState(false); 
 
   // Guided Reading-to-Writing States
   const [guidedStep, setGuidedStep] = useState('reading'); 
@@ -230,6 +230,7 @@ export default function App() {
   
   const [activeCommentIndex, setActiveCommentIndex] = useState(null);
   const [correctionAttempts, setCorrectionAttempts] = useState({});
+  const [isBatchChecking, setIsBatchChecking] = useState(false); // Thêm state cho việc chấm gộp
   const commentRefs = useRef({});
 
   const [evalWidth, setEvalWidth] = useState(420);
@@ -345,7 +346,7 @@ export default function App() {
       return false; // Chặn lệnh gọi
     }
     
-    // Cảnh báo preemptive ở lần chạm mốc 14 (tương ứng với length === 13)
+    // Cảnh báo preemptive ở lần chạm mốc 14
     if (apiTimestamps.length === 13) { 
       showToast("⚠️ Chú ý: Năng lượng AI sắp cạn (14/15). Hãy tạm dừng vài giây để hệ thống phục hồi nhé!", "error", 6000);
     }
@@ -491,7 +492,7 @@ export default function App() {
     const handleMouseUp = () => { if (isDraggingRef.current) { isDraggingRef.current = false; document.body.style.cursor = 'default'; } };
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-    return () => { document.removeEventListener('mousemove', handleMouseMove); document.removeEventListener('mouseup', handleMouseUp); };
+    return () => { document.removeEventListener('mousemove', handleMouseMove); document.removeEventListener('mousemove', handleMouseUp); };
   }, []);
 
   const startDrag = (e) => { isDraggingRef.current = true; document.body.style.cursor = 'col-resize'; };
@@ -706,22 +707,73 @@ export default function App() {
     } catch (error) { handleApiError(error); } finally { setIsEvaluating(false); }
   };
 
-  const handleCheckCorrection = async (idx) => {
-    const attempt = correctionAttempts[idx]?.text;
-    if (!attempt || !attempt.trim()) return showToast("Vui lòng viết lại câu trước khi check.", "error");
+  // TÍNH NĂNG GOM CHẤM MỘT LẦN (BATCH CORRECTION CHECK)
+  const handleBatchCheckCorrections = async () => {
+    // Lọc ra các câu mà người dùng ĐÃ có nhập text sửa và CHƯA được review
+    const pendingChecks = Object.entries(correctionAttempts)
+       .filter(([idx, attempt]) => attempt.text && attempt.text.trim() && !attempt.reviewed)
+       .map(([idx, attempt]) => ({
+           idx: idx,
+           originalError: evaluationResult.detailedCorrections[idx].original,
+           studentRewrite: attempt.text.trim()
+       }));
+
+    if (pendingChecks.length === 0) {
+       return showToast("Vui lòng viết lại ít nhất 1 câu lỗi trước khi kiểm tra.", "info");
+    }
+
     if (!checkAndRecordApiCall()) return;
 
-    const correctionData = evaluationResult.detailedCorrections[idx];
-    setCorrectionAttempts(prev => ({ ...prev, [idx]: { ...prev[idx], isSubmitting: true } }));
-    const systemPrompt = `Evaluate if the student successfully fixed this error: "${correctionData.original}". Student's rewrite: "${attempt}". Return strictly JSON: { "isCorrect": true/false, "feedback": "Brief feedback max 15 words" }.`;
+    setIsBatchChecking(true);
+    
+    // Tạo cấu trúc dữ liệu gửi lên AI
+    const batchPayload = pendingChecks.map(p => ({
+        id: p.idx,
+        error: p.originalError,
+        rewrite: p.studentRewrite
+    }));
+
+    const systemPrompt = `You are an IELTS teacher. Evaluate a batch of student's rewritten sentences.
+    Input format: an array of objects {id, error, rewrite}.
+    For each rewrite, check if it successfully fixes the original error in grammatical/lexical context.
+    Return strictly JSON: { "results": [ { "id": "...", "isCorrect": true/false, "feedback": "Brief feedback max 15 words" } ] }`;
+
     try {
         const result = await fetchWithRetry({
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: "Check my rewrite." }] }], systemInstruction: { parts: [{ text: systemPrompt }] }, generationConfig: { responseMimeType: "application/json" } })
+            body: JSON.stringify({ 
+                contents: [{ parts: [{ text: JSON.stringify(batchPayload) }] }], 
+                systemInstruction: { parts: [{ text: systemPrompt }] }, 
+                generationConfig: { responseMimeType: "application/json" } 
+            })
         });
+        
         const aiReview = parseGeminiResponse(result.candidates[0].content.parts[0].text);
-        setCorrectionAttempts(prev => ({ ...prev, [idx]: { ...prev[idx], isSubmitting: false, reviewed: true, isCorrect: aiReview.isCorrect, feedback: aiReview.feedback } }));
-    } catch (e) { handleApiError(e); setCorrectionAttempts(prev => ({ ...prev, [idx]: { ...prev[idx], isSubmitting: false } })); }
+        
+        // Cập nhật lại state correctionAttempts cho các câu đã check
+        setCorrectionAttempts(prev => {
+            const newState = { ...prev };
+            aiReview.results.forEach(res => {
+                if (newState[res.id]) {
+                    newState[res.id] = {
+                        ...newState[res.id],
+                        reviewed: true,
+                        isCorrect: res.isCorrect,
+                        feedback: res.feedback,
+                        showAnswer: true // Hiển thị luôn đáp án chuẩn bên dưới
+                    };
+                }
+            });
+            return newState;
+        });
+
+        showToast(`Đã kiểm tra thành công ${aiReview.results.length} câu!`, "success");
+
+    } catch (e) { 
+        handleApiError(e); 
+    } finally { 
+        setIsBatchChecking(false); 
+    }
   };
 
   const handleStartQuiz = async () => {
@@ -869,6 +921,9 @@ export default function App() {
         if (writingTarget === 'body') return "Viết phần Thân bài (Body) của bạn tại đây..." + hint;
         return "Viết trọn vẹn bài essay của bạn tại đây..." + hint;
     };
+
+    // Đếm số lượng câu đã sửa nhưng chưa được kiểm tra
+    const pendingCount = Object.values(correctionAttempts).filter(a => a.text && a.text.trim() && !a.reviewed).length;
 
     return (
     <div className="flex-1 flex p-2 lg:p-3 gap-3 min-h-0 relative">
@@ -1028,6 +1083,12 @@ export default function App() {
 
               <div className="pt-2 border-t">
                  <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-1.5 text-sm"><Highlighter className="text-rose-500" size={16}/> Sửa lỗi chi tiết</h4>
+                 
+                 <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-100 mb-4 text-xs text-indigo-800 leading-relaxed flex gap-2">
+                    <Lightbulb size={16} className="shrink-0 text-indigo-600 mt-0.5"/>
+                    <p><strong>Mẹo tiết kiệm năng lượng:</strong> Hãy gõ lại toàn bộ các câu bạn muốn sửa, sau đó bấm nút <strong className="text-indigo-600">Kiểm tra tất cả</strong> ở cuối danh sách để AI chấm một lần duy nhất nhé!</p>
+                 </div>
+
                  <div className="space-y-4">
                     {evaluationResult.detailedCorrections.map((c, i) => {
                        const attemptState = correctionAttempts[i] || {};
@@ -1035,7 +1096,7 @@ export default function App() {
                        const sentenceDetails = getFullSentenceDetails(essay, c.original, c.corrected);
                        
                        return (
-                         <div key={i} ref={(el) => (commentRefs.current[i] = el)} className={`p-4 rounded-xl border transition-all ${activeCommentIndex === i ? 'bg-indigo-50 border-indigo-300 shadow-md' : 'bg-slate-50 border-slate-100'}`} onMouseEnter={() => setActiveCommentIndex(i)} onMouseLeave={() => setActiveCommentIndex(null)}>
+                         <div key={i} ref={(el) => (commentRefs.current[i] = el)} className={`p-4 rounded-xl border transition-all ${activeCommentIndex === i ? 'bg-indigo-50/50 border-indigo-300 shadow-md' : 'bg-slate-50 border-slate-100'}`} onMouseEnter={() => setActiveCommentIndex(i)} onMouseLeave={() => setActiveCommentIndex(null)}>
                             <div className="flex justify-between items-center mb-3">
                                <span className="text-[11px] font-black uppercase text-rose-600 tracking-wider flex items-center gap-1.5 bg-rose-100 px-2 py-1 rounded-md"><XCircle size={14}/> Lỗi cần sửa</span>
                                <button 
@@ -1059,14 +1120,18 @@ export default function App() {
                             </div>
                             
                             {!showAnswer ? (
-                               <div className="flex flex-col gap-3 animate-fadeIn mt-2">
+                               <div className="flex flex-col gap-2 animate-fadeIn mt-2">
                                   <span className="text-[11px] font-bold text-slate-500">✍️ Hãy thử viết lại câu trên cho đúng:</span>
-                                  <textarea className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all custom-scrollbar resize-none" rows={2} placeholder="Viết lại toàn bộ câu..." value={attemptState.text || ''} onChange={(e) => setCorrectionAttempts(prev => ({...prev, [i]: { ...prev[i], text: e.target.value }}))} disabled={attemptState.isSubmitting} />
-                                  <div className="flex justify-between items-center mt-1">
-                                    <button onClick={() => setCorrectionAttempts(prev => ({...prev, [i]: { ...prev[i], showAnswer: true }}))} className="text-[11px] text-slate-400 hover:text-slate-600 font-bold underline transition-colors">Bỏ qua & Xem đáp án</button>
-                                    <button onClick={() => handleCheckCorrection(i)} disabled={attemptState.isSubmitting || !attemptState.text?.trim()} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-xs font-bold disabled:opacity-50 flex items-center gap-1.5 shadow-md transition-all">
-                                      {attemptState.isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} Kiểm tra
-                                    </button>
+                                  <textarea 
+                                      className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all custom-scrollbar resize-none" 
+                                      rows={2} 
+                                      placeholder="Viết lại toàn bộ câu..." 
+                                      value={attemptState.text || ''} 
+                                      onChange={(e) => setCorrectionAttempts(prev => ({...prev, [i]: { ...prev[i], text: e.target.value }}))} 
+                                      disabled={isBatchChecking} 
+                                  />
+                                  <div className="flex justify-end mt-1">
+                                    <button onClick={() => setCorrectionAttempts(prev => ({...prev, [i]: { ...prev[i], showAnswer: true }}))} className="text-[11px] text-slate-400 hover:text-slate-600 font-bold underline transition-colors">Bỏ qua & Xem đáp án chuẩn</button>
                                   </div>
                                </div>
                             ) : (
@@ -1094,6 +1159,19 @@ export default function App() {
                          </div>
                        );
                     })}
+
+                    {/* NÚT KIỂM TRA TẤT CẢ (GOM BATCH) NẰM Ở CUỐI DANH SÁCH LỖI */}
+                    <div className="sticky bottom-0 bg-white/90 backdrop-blur border-t p-4 rounded-xl shadow-[0_-4px_10px_rgba(0,0,0,0.05)] mt-6">
+                        <button 
+                            onClick={handleBatchCheckCorrections} 
+                            disabled={isBatchChecking || pendingCount === 0} 
+                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-black disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg transition-all"
+                        >
+                            {isBatchChecking ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />} 
+                            {isBatchChecking ? 'Đang chấm điểm các câu...' : `Kiểm tra tất cả câu đã sửa (${pendingCount})`}
+                        </button>
+                    </div>
+
                  </div>
               </div>
               
