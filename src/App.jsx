@@ -1122,7 +1122,10 @@ export default function App() {
     return (
     <div className="max-w-5xl mx-auto p-8 animate-fadeIn h-full flex flex-col w-full">
        <div className="flex justify-between items-center mb-8 shrink-0">
-          <h2 className="text-2xl font-black text-slate-800 flex items-center gap-2"><Library className="text-emerald-600"/> Kho Bài Mẫu</h2>
+          <h2 className="text-2xl font-black text-slate-800 flex items-center gap-2">
+             <Library className="text-emerald-600"/> Kho Bài Mẫu
+             <span className="ml-2 text-sm font-bold bg-emerald-100 text-emerald-700 px-3 py-1 rounded-xl shadow-sm border border-emerald-200">{filteredSamples.length} bài</span>
+          </h2>
           <div className="flex items-center gap-3">
              <select className="bg-white border-2 border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-700 outline-none focus:border-emerald-500" value={filterSampleTopic} onChange={(e) => {setFilterSampleTopic(e.target.value); setFilterSampleSubtopic('');}}>
                 <option value="">Lọc theo Chủ đề</option>
@@ -1165,7 +1168,10 @@ export default function App() {
     return (
     <div className="max-w-5xl mx-auto p-8 animate-fadeIn h-full flex flex-col w-full">
        <div className="flex justify-between items-center mb-8 shrink-0">
-          <h2 className="text-2xl font-black text-slate-800 flex items-center gap-2"><Tags className="text-indigo-600"/> Kho Từ Vựng</h2>
+          <h2 className="text-2xl font-black text-slate-800 flex items-center gap-2">
+             <Tags className="text-indigo-600"/> Kho Từ Vựng
+             <span className="ml-2 text-sm font-bold bg-indigo-100 text-indigo-700 px-3 py-1 rounded-xl shadow-sm border border-indigo-200">{filteredVocabs.length} từ</span>
+          </h2>
           <div className="flex items-center gap-3">
              <select className="bg-white border-2 border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500" value={filterVocabTopic} onChange={(e) => {setFilterVocabTopic(e.target.value); setFilterVocabSubtopic('');}}>
                 <option value="">Lọc theo Chủ đề</option>
