@@ -203,9 +203,9 @@ export default function App() {
   const [showParaphraseModal, setShowParaphraseModal] = useState(false);
   const [showSampleModal, setShowSampleModal] = useState(false);
   const [showVocabModal, setShowVocabModal] = useState(false);
+  const [showGuidedModal, setShowGuidedModal] = useState(false); // Đảm bảo Modal được kích hoạt
 
   // Guided Reading-to-Writing States
-  const [showGuidedModal, setShowGuidedModal] = useState(false);
   const [guidedStep, setGuidedStep] = useState('reading'); 
   const [guidedArticle, setGuidedArticle] = useState(null);
   const [isGeneratingArticle, setIsGeneratingArticle] = useState(false);
@@ -1690,6 +1690,97 @@ export default function App() {
                      </div>
 
                   </div>
+                ) : null}
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL HƯỚNG DẪN VIẾT BỊ XÓA NHẦM ĐÃ ĐƯỢC KHÔI PHỤC --- */}
+      {showGuidedModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-50 rounded-3xl shadow-2xl w-[95%] max-w-5xl max-h-[90vh] flex flex-col animate-slideUp overflow-hidden">
+             <div className="p-4 md:p-5 border-b flex justify-between items-center bg-white shrink-0">
+                <h3 className="font-black text-indigo-600 text-base md:text-lg flex items-center gap-2"><BookOpen size={22}/> Hướng Dẫn Viết (Reading to Writing)</h3>
+                <button onClick={() => setShowGuidedModal(false)} className="hover:bg-slate-100 p-2 rounded-xl text-slate-500 transition-colors"><X size={20}/></button>
+             </div>
+
+             <div className="p-4 md:p-8 overflow-y-auto flex-1 min-h-0 custom-scrollbar relative">
+                {isGeneratingArticle ? (
+                   <div className="flex flex-col items-center justify-center py-20 h-full">
+                     <Loader2 className="animate-spin mb-4 text-indigo-500" size={48}/>
+                     <p className="font-black text-slate-700 text-lg">AI đang viết bài báo phân tích...</p>
+                     <p className="text-sm text-slate-500 mt-2">Tổng hợp ý tưởng từ các bài mẫu Band 8.0</p>
+                   </div>
+                ) : guidedArticle && guidedStep === 'reading' ? (
+                   <div className="flex flex-col lg:flex-row gap-6">
+                      <div className="flex-1 space-y-4">
+                         <h4 className="text-xl md:text-2xl font-black text-slate-800 leading-snug">{guidedArticle.title}</h4>
+                         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 text-slate-700 leading-relaxed font-serif text-lg text-justify"
+                              dangerouslySetInnerHTML={{ __html: guidedArticle.content.replace(/\n/g, '<br/>') }} />
+                      </div>
+                      <div className="w-full lg:w-[320px] shrink-0 flex flex-col gap-4">
+                         <div className="bg-indigo-50 p-5 rounded-2xl border border-indigo-100 shadow-sm sticky top-0">
+                            <h5 className="font-black text-indigo-800 mb-3 flex items-center gap-2"><Sparkles size={18}/> 10 Cụm từ Band 8.0+</h5>
+                            <ul className="space-y-3">
+                               {guidedArticle.collocations?.map((c, i) => (
+                                 <li key={i} className="bg-white p-3 rounded-xl border border-indigo-50 shadow-sm">
+                                    <span className="font-bold text-indigo-700 block text-sm">{c.phrase}</span>
+                                    <span className="text-xs text-slate-500">{c.meaning}</span>
+                                 </li>
+                               ))}
+                            </ul>
+                            <button onClick={handleGenerateGuidedExercise} disabled={isGeneratingExercise} className="mt-5 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2">
+                               {isGeneratingExercise ? <Loader2 size={18} className="animate-spin"/> : <ArrowRight size={18}/>}
+                               Làm bài tập điền từ
+                            </button>
+                         </div>
+                      </div>
+                   </div>
+                ) : guidedStep === 'exercise' && guidedExercise ? (
+                   <div className="max-w-3xl mx-auto space-y-6">
+                      <button onClick={() => setGuidedStep('reading')} className="text-indigo-600 font-bold text-sm flex items-center gap-1 hover:underline"><ArrowLeft size={16}/> Quay lại bài đọc</button>
+                      <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200">
+                         <h4 className="text-xl font-black text-slate-800 mb-4 flex items-center gap-2"><Layers className="text-amber-500"/> Summary Completion</h4>
+                         <p className="text-sm text-slate-500 mb-6">Điền các cụm từ thích hợp vào chỗ trống để hoàn thành tóm tắt bài báo.</p>
+
+                         <div className="flex flex-wrap gap-2 mb-8 p-4 bg-amber-50 rounded-xl border border-amber-100">
+                            <span className="text-[10px] font-black uppercase text-amber-700 mt-1 mr-2">Word Bank:</span>
+                            {guidedExercise.wordBank?.map((w, i) => (
+                               <span key={i} className="bg-white px-3 py-1 rounded border shadow-sm text-indigo-700 font-bold text-sm">{w}</span>
+                            ))}
+                         </div>
+
+                         <div className="text-lg text-slate-700 leading-loose font-serif text-justify">
+                            {guidedExercise.summaryText.split('___').map((part, pIdx, arr) => (
+                               <React.Fragment key={pIdx}>
+                                  {part}
+                                  {pIdx < arr.length - 1 && (
+                                    <span className="inline-block relative">
+                                      <input
+                                        type="text"
+                                        className={`w-32 md:w-40 px-2 py-1 mx-1 border-b-2 bg-slate-50 outline-none text-center font-bold text-indigo-700 focus:border-indigo-500 transition-colors ${guidedAnswers.showResults ? (guidedAnswers[pIdx]?.trim().toLowerCase() === guidedExercise.blanks[pIdx]?.answer.toLowerCase() ? 'border-emerald-500 text-emerald-600 bg-emerald-50' : 'border-rose-500 text-rose-600 bg-rose-50') : 'border-slate-300'}`}
+                                        value={guidedAnswers[pIdx] || ''}
+                                        onChange={(e) => setGuidedAnswers(prev => ({...prev, [pIdx]: e.target.value, showResults: false}))}
+                                        disabled={guidedAnswers.showResults}
+                                      />
+                                      {guidedAnswers.showResults && guidedAnswers[pIdx]?.trim().toLowerCase() !== guidedExercise.blanks[pIdx]?.answer.toLowerCase() && (
+                                         <span className="absolute -bottom-5 left-0 w-full text-center text-[10px] font-black text-rose-600 bg-rose-100 rounded">
+                                            {guidedExercise.blanks[pIdx]?.answer}
+                                         </span>
+                                      )}
+                                    </span>
+                                  )}
+                               </React.Fragment>
+                            ))}
+                         </div>
+                      </div>
+                      {!guidedAnswers.showResults ? (
+                         <button onClick={() => setGuidedAnswers(prev => ({...prev, showResults: true}))} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-2xl shadow-lg transition-colors text-lg">Kiểm tra đáp án</button>
+                      ) : (
+                         <button onClick={() => setGuidedAnswers({})} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 rounded-2xl shadow-lg transition-colors text-lg flex items-center justify-center gap-2"><RefreshCw size={20}/> Làm lại</button>
+                      )}
+                   </div>
                 ) : null}
              </div>
           </div>
