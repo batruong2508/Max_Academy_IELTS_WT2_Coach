@@ -1178,34 +1178,46 @@ export default function App() {
              <button onClick={() => { setNewVocab({ topic: '', subtopic: '', phrase: '', basePhrase: '', translation: '', example1: '', example2: '' }); setVocabStep('init'); setShowVocabModal(true); }} className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-black flex items-center gap-2 shadow-lg shadow-indigo-600/20"><Plus size={18}/> Thêm từ mới</button>
           </div>
        </div>
-       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 overflow-y-auto custom-scrollbar flex-1 pb-10 content-start">
-          {filteredVocabs.length === 0 ? <div className="col-span-full py-20 text-center text-slate-300 font-bold border-2 border-dashed rounded-3xl">Chưa có từ vựng nào trong chủ đề này.</div> :
+       
+       {/* ĐÃ CHUYỂN TỪ GRID SANG FLEX-COL (DẠNG DANH SÁCH LIST CARD) */}
+       <div className="flex flex-col gap-5 overflow-y-auto custom-scrollbar flex-1 pb-10 content-start pr-2">
+          {filteredVocabs.length === 0 ? <div className="py-20 text-center text-slate-300 font-bold border-2 border-dashed rounded-3xl">Chưa có từ vựng nào trong chủ đề này.</div> :
           filteredVocabs.map(v => (
-            <div key={v.id} onClick={() => setSelectedVocab(v)} className="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-slate-200 relative group hover:border-indigo-300 transition-colors flex flex-col cursor-pointer text-left h-fit">
-               <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                  <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setNewVocab({ id: v.id, topic: v.topicId || '', subtopic: v.subtopicId || '', phrase: v.phrase, basePhrase: v.phrase, translation: v.translation, example1: v.examples?.[0] || '', example2: v.examples?.[1] || '' }); setVocabStep('reviewed'); setShowVocabModal(true); }} className="text-slate-300 hover:text-indigo-500 p-1 bg-white/80 rounded" title="Sửa từ vựng này"><Edit3 size={16}/></button>
-                  <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); triggerDelete('vocabulary', v.id); }} className="text-slate-300 hover:text-rose-500 p-1 bg-white/80 rounded"><Trash2 size={16}/></button>
+            <div key={v.id} onClick={() => setSelectedVocab(v)} className="bg-white p-5 md:p-6 rounded-[24px] shadow-sm border border-slate-200 relative group hover:border-indigo-300 transition-all flex flex-col md:flex-row gap-5 md:gap-8 cursor-pointer text-left shrink-0">
+               <div className="absolute top-4 right-4 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                  <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setNewVocab({ id: v.id, topic: v.topicId || '', subtopic: v.subtopicId || '', phrase: v.phrase, basePhrase: v.phrase, translation: v.translation, example1: v.examples?.[0] || '', example2: v.examples?.[1] || '' }); setVocabStep('reviewed'); setShowVocabModal(true); }} className="text-slate-400 hover:text-indigo-600 p-2 bg-slate-100 hover:bg-indigo-50 rounded-xl transition-colors" title="Sửa từ vựng này"><Edit3 size={16}/></button>
+                  <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); triggerDelete('vocabulary', v.id); }} className="text-slate-400 hover:text-rose-600 p-2 bg-slate-100 hover:bg-rose-50 rounded-xl transition-colors" title="Xóa từ vựng"><Trash2 size={16}/></button>
                </div>
-               <div className="flex flex-wrap gap-1.5 mb-3">
-                 {v.topicId === 'general' ? (
-                    <span className="text-[9px] font-black text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider border border-slate-200 flex items-center gap-1"><Layers size={10}/> Đa chủ đề</span>
-                 ) : v.topicId ? (
-                    <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md uppercase tracking-wider border border-indigo-100 flex items-center gap-1"><Layers size={10}/> {TOPICS.find(t => t.id === v.topicId)?.name?.split(' ')[0] || v.topicId}</span>
-                 ) : null}
-                 {v.subtopicId && (
-                    <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md uppercase tracking-wider border border-emerald-100">{SUBTOPICS[v.topicId]?.find(st => st.id === v.subtopicId)?.name || v.subtopicId}</span>
-                 )}
-               </div>
-               <h3 className="text-base md:text-lg font-black text-indigo-800 mb-1 pr-4 leading-tight break-words">{v.phrase}</h3>
-               <p className="text-xs text-slate-500 font-bold mb-3 break-words">{v.translation}</p>
                
-               {v.examples?.[0] && (
-                 <div className="mt-1 pt-3 border-t border-slate-100">
-                     <div className="text-[11px] leading-relaxed text-slate-700 bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-50/80">
-                       {renderHighlightedExample(v.examples[0])}
-                     </div>
-                 </div>
-               )}
+               <div className="w-full md:w-[35%] flex flex-col justify-center">
+                   <div className="flex flex-wrap gap-2 mb-3 pr-20 md:pr-0">
+                     {v.topicId === 'general' ? (
+                        <span className="text-[10px] font-black text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg uppercase tracking-wider border border-slate-200 flex items-center gap-1.5 shadow-sm"><Layers size={12}/> Đa chủ đề</span>
+                     ) : v.topicId ? (
+                        <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg uppercase tracking-wider border border-indigo-100 flex items-center gap-1.5 shadow-sm"><Layers size={12}/> {TOPICS.find(t => t.id === v.topicId)?.name?.split(' ')[0] || v.topicId}</span>
+                     ) : null}
+                     {v.subtopicId && (
+                        <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg uppercase tracking-wider border border-emerald-100 shadow-sm">{SUBTOPICS[v.topicId]?.find(st => st.id === v.subtopicId)?.name || v.subtopicId}</span>
+                     )}
+                   </div>
+                   <h3 className="text-xl md:text-[22px] font-black text-indigo-900 mb-2 leading-tight break-words">{v.phrase}</h3>
+                   <p className="text-sm font-bold text-slate-500 break-words">{v.translation}</p>
+               </div>
+               
+               <div className="w-full md:w-[65%] flex flex-col justify-center border-t md:border-t-0 md:border-l border-slate-100 pt-5 md:pt-0 md:pl-8 space-y-3">
+                   {v.examples?.[0] ? (
+                       <div className="text-[14px] md:text-[15px] leading-relaxed text-slate-700 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100/80 shadow-sm font-serif text-justify">
+                           {renderHighlightedExample(v.examples[0])}
+                       </div>
+                   ) : (
+                       <span className="text-sm text-slate-300 italic">Chưa có câu mẫu 1...</span>
+                   )}
+                   {v.examples?.[1] && (
+                       <div className="text-[14px] md:text-[15px] leading-relaxed text-slate-700 bg-emerald-50/30 p-4 rounded-2xl border border-emerald-100/60 shadow-sm font-serif text-justify mt-1">
+                           {renderHighlightedExample(v.examples[1])}
+                       </div>
+                   )}
+               </div>
             </div>
           ))}
        </div>
