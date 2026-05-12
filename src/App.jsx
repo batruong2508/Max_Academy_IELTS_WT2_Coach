@@ -1576,43 +1576,129 @@ export default function App() {
          avgGRA = (validEvals.reduce((sum, e) => sum + Number(e.graScore), 0) / validEvals.length).toFixed(1);
       }
       highestBand = Math.max(...evaluationsHistory.map(e => Number(e.overallBand) || 0)).toFixed(1);
-    } else {
-      avgTR = avgCC = avgLR = avgGRA = "0.0";
-      highestBand = "0.0";
     }
 
+    // Tính toán dữ liệu cho Biểu đồ Radar
+    const radarData = [
+      { name: 'TR', score: parseFloat(avgTR) || 0 },
+      { name: 'CC', score: parseFloat(avgCC) || 0 },
+      { name: 'LR', score: parseFloat(avgLR) || 0 },
+      { name: 'GRA', score: parseFloat(avgGRA) || 0 },
+    ];
+
+    const getPoint = (score, index) => {
+       const r = (score / 9) * 40; // Scale điểm 0-9 thành bán kính 0-40
+       const angle = (index * 90 - 90) * (Math.PI / 180);
+       return `${50 + r * Math.cos(angle)},${50 + r * Math.sin(angle)}`;
+    };
+
+    const polygonPoints = radarData.map((d, i) => getPoint(d.score, i)).join(' ');
+
+    // Tính toán Điểm mạnh / Điểm yếu
+    const minScore = Math.min(...radarData.map(d => d.score));
+    const maxScore = Math.max(...radarData.map(d => d.score));
+    const weakest = radarData.find(d => d.score === minScore)?.name || 'TR';
+    const strongest = radarData.find(d => d.score === maxScore)?.name || 'TR';
+
+    // Bác sĩ AI kê đơn dựa trên "Kẻ ngáng đường"
+    const adviceMap = {
+       'TR': { title: 'Task Response', text: 'Bạn đang gặp khó khăn trong việc bám sát đề và phát triển ý. Lời khuyên: Hãy sử dụng tính năng Mindmap EGOSFI trước khi viết để lập dàn ý mạch lạc hơn.' },
+       'CC': { title: 'Coherence & Cohesion', text: 'Các câu/đoạn văn của bạn chưa liên kết chặt chẽ. Lời khuyên: Hãy vào Cẩm nang 40/60, ôn lại mục [Từ nối chuyển ý] để luồng văn mượt mà hơn.' },
+       'LR': { title: 'Lexical Resource', text: 'Vốn từ vựng của bạn còn hạn chế hoặc lặp từ nhiều. Lời khuyên: Chăm chỉ dùng "Gợi ý từ (@@)" và thường xuyên chơi Quiz Ôn tập từ vựng nhé!' },
+       'GRA': { title: 'Grammatical Range', text: 'Độ chính xác ngữ pháp và cấu trúc câu phức chưa cao. Lời khuyên: Hãy bôi đen các câu đơn giản và dùng tính năng [✨ Nâng cấp câu] để học cách viết Band 7.5+.' }
+    };
+
     return (
-      <div className="max-w-5xl mx-auto p-4 md:p-8 animate-fadeIn h-full flex flex-col w-full">
+      <div className="max-w-5xl mx-auto p-4 md:p-8 animate-fadeIn h-full flex flex-col w-full overflow-y-auto custom-scrollbar">
          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 shrink-0 gap-4">
-           <h2 className="text-2xl font-black text-slate-800 flex items-center gap-2"><BarChart3 className="text-rose-600"/> Thống Kê Điểm Số</h2>
+           <h2 className="text-2xl font-black text-slate-800 flex items-center gap-2"><BarChart3 className="text-indigo-600"/> Thống Kê & Phân Tích</h2>
            <div className="bg-indigo-50 text-indigo-700 px-4 py-2.5 rounded-xl font-medium text-sm border border-indigo-100 flex flex-wrap gap-4 shadow-sm">
               <span>Tổng bài viết: <span className="font-black text-indigo-900">{totalEssays}</span></span>
-              <span>Band cao nhất: <span className="font-black text-emerald-600 bg-emerald-100/50 px-1.5 py-0.5 rounded">{highestBand}</span></span>
+              <span>Band cao nhất: <span className="font-black text-emerald-600 bg-emerald-100/50 px-1.5 py-0.5 rounded">{highestBand > 0 ? highestBand : '-'}</span></span>
            </div>
          </div>
 
-         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-8 shrink-0">
-            {[ { k: 'Task Response', v: avgTR, color: 'text-blue-600' },
-               { k: 'Cohesion', v: avgCC, color: 'text-amber-600' },
-               { k: 'Vocabulary', v: avgLR, color: 'text-emerald-600' },
-               { k: 'Grammar', v: avgGRA, color: 'text-rose-600' } ].map((s, i) => (
-              <div key={i} className="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 text-center relative overflow-hidden group hover:border-indigo-300 transition-colors">
-                 <div className="absolute top-0 left-0 w-full h-1 bg-slate-100 group-hover:bg-indigo-400 transition-colors"></div>
-                 <p className="text-[10px] md:text-xs font-bold text-slate-400 mb-2 uppercase tracking-widest truncate">{s.k}</p>
-                 <div className={`text-3xl md:text-4xl font-black ${s.v > 0 ? s.color : 'text-slate-300'}`}>{s.v > 0 ? s.v : '-'}</div>
+         {totalEssays > 0 ? (
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 shrink-0">
+              {/* CỘT 1: RADAR CHART */}
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col items-center justify-center relative overflow-hidden">
+                 <div className="absolute top-0 left-0 w-full h-1 bg-indigo-400"></div>
+                 <h3 className="font-black text-slate-800 mb-6 w-full flex items-center gap-2"><Target size={18} className="text-rose-500"/> Biểu đồ Năng lực (Spider Web)</h3>
+                 
+                 <div className="relative w-48 h-48 sm:w-56 sm:h-56 mb-4">
+                    <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-md">
+                       {/* Grid lưới mạng nhện (điểm 3, 5, 7, 9) */}
+                       {[3, 5, 7, 9].map(score => (
+                         <polygon key={score} points={[0,1,2,3].map(i => getPoint(score, i)).join(' ')} fill="none" stroke="#e2e8f0" strokeWidth="0.5" strokeDasharray="1,1" />
+                       ))}
+                       {/* Trục tọa độ */}
+                       <line x1="50" y1="10" x2="50" y2="90" stroke="#cbd5e1" strokeWidth="0.5" />
+                       <line x1="10" y1="50" x2="90" y2="50" stroke="#cbd5e1" strokeWidth="0.5" />
+                       
+                       {/* Vùng Dữ liệu của học viên */}
+                       <polygon points={polygonPoints} fill="rgba(99, 102, 241, 0.2)" stroke="#4f46e5" strokeWidth="1.5" className="transition-all duration-700 ease-in-out" />
+                       
+                       {/* Các điểm mút */}
+                       {radarData.map((d, i) => {
+                          const [x, y] = getPoint(d.score, i).split(',');
+                          return <circle key={i} cx={x} cy={y} r="2" fill="#4f46e5" className="animate-pulse" />;
+                       })}
+                    </svg>
+                    
+                    {/* Nhãn dán các trục */}
+                    <div className="absolute top-0 inset-x-0 flex justify-center -mt-2"><span className="text-[10px] font-black text-blue-600 bg-white px-1 shadow-sm rounded">TR ({avgTR})</span></div>
+                    <div className="absolute right-0 inset-y-0 flex items-center -mr-6"><span className="text-[10px] font-black text-amber-600 bg-white px-1 shadow-sm rounded">CC ({avgCC})</span></div>
+                    <div className="absolute bottom-0 inset-x-0 flex justify-center -mb-2"><span className="text-[10px] font-black text-emerald-600 bg-white px-1 shadow-sm rounded">LR ({avgLR})</span></div>
+                    <div className="absolute left-0 inset-y-0 flex items-center -ml-6"><span className="text-[10px] font-black text-rose-600 bg-white px-1 shadow-sm rounded">GRA ({avgGRA})</span></div>
+                 </div>
               </div>
-            ))}
-         </div>
 
-         <div className="bg-white rounded-3xl border border-slate-200 flex-1 flex flex-col overflow-hidden shadow-sm">
-            <div className="p-5 border-b bg-slate-50 shrink-0 flex justify-between items-center">
-               <h3 className="font-bold text-slate-800">Lịch sử Luyện viết</h3>
-               <span className="text-[11px] font-bold text-slate-500 bg-white px-2 py-1 border rounded-lg">Mới nhất xếp trước</span>
+              {/* CỘT 2: BÁC SĨ AI KÊ ĐƠN */}
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col relative overflow-hidden">
+                 <div className="absolute top-0 left-0 w-full h-1 bg-amber-400"></div>
+                 <h3 className="font-black text-slate-800 mb-6 w-full flex items-center gap-2"><Sparkles size={18} className="text-amber-500"/> Chẩn đoán & Lời khuyên</h3>
+                 
+                 <div className="space-y-4">
+                    <div className="flex items-start gap-3 bg-emerald-50/50 p-3 rounded-xl border border-emerald-100">
+                       <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 font-black">↑</div>
+                       <div>
+                          <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-0.5">Tiêu chí mạnh nhất</p>
+                          <p className="text-sm font-bold text-slate-800"><span className="text-emerald-600">{adviceMap[strongest].title}</span> (Band {maxScore})</p>
+                       </div>
+                    </div>
+                    
+                    <div className="flex items-start gap-3 bg-rose-50/50 p-3 rounded-xl border border-rose-100">
+                       <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 font-black">↓</div>
+                       <div>
+                          <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-0.5">Kẻ ngáng đường (Yếu nhất)</p>
+                          <p className="text-sm font-bold text-slate-800"><span className="text-rose-600">{adviceMap[weakest].title}</span> (Band {minScore})</p>
+                       </div>
+                    </div>
+
+                    <div className="mt-2 bg-indigo-50 border border-indigo-100 p-4 rounded-2xl relative shadow-inner">
+                       <Brain size={24} className="text-indigo-200 absolute right-4 top-4 opacity-50"/>
+                       <p className="text-[10px] font-black uppercase text-indigo-500 tracking-wider mb-1.5 flex items-center gap-1"><Sparkles size={12}/> Lời khuyên từ AI Coach:</p>
+                       <p className="text-sm text-indigo-900 font-medium leading-relaxed">{adviceMap[weakest].text}</p>
+                    </div>
+                 </div>
+              </div>
+           </div>
+         ) : (
+           <div className="bg-white p-10 rounded-3xl shadow-sm border border-slate-200 text-center mb-8">
+              <BarChart3 size={48} className="mx-auto text-slate-200 mb-4" />
+              <p className="text-slate-400 font-bold">Chưa có đủ dữ liệu để phân tích. Hãy hoàn thành bài viết đầu tiên nhé!</p>
+           </div>
+         )}
+
+         <div className="bg-white rounded-3xl border border-slate-200 flex flex-col overflow-hidden shadow-sm shrink-0">
+            <div className="p-5 border-b bg-slate-50 flex justify-between items-center">
+               <h3 className="font-bold text-slate-800 flex items-center gap-2"><ListChecks size={18} className="text-slate-400"/> Lịch sử Luyện viết</h3>
+               <span className="text-[11px] font-bold text-slate-500 bg-white px-2 py-1 border rounded-lg shadow-sm">Mới nhất xếp trước</span>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
-               {evaluationsHistory.length === 0 ? <div className="text-center py-20 text-slate-400 font-bold border-2 border-dashed rounded-2xl">Bạn chưa có bài viết nào được chấm điểm.</div> : 
+            <div className="p-4 md:p-6 custom-scrollbar max-h-[500px] overflow-y-auto bg-slate-50/30">
+               {evaluationsHistory.length === 0 ? <div className="text-center py-10 text-slate-400 font-bold border-2 border-dashed rounded-2xl">Chưa có bài viết nào được lưu.</div> : 
                  [...evaluationsHistory].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map((ev, i) => (
-                   <div key={ev.id || i} className="mb-4 p-4 md:p-5 bg-white rounded-2xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between hover:border-indigo-200 hover:shadow-md transition-all gap-4 group">
+                   <div key={ev.id || i} className="mb-4 p-4 md:p-5 bg-white rounded-2xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between hover:border-indigo-300 hover:shadow-md transition-all gap-4 group">
                       <div className="flex-1 min-w-0">
                          <div className="flex items-center gap-2 mb-2">
                            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
