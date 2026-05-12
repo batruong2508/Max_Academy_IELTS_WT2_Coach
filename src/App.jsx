@@ -7,28 +7,37 @@ import {
   FileText, MessageSquareDiff, MessageSquare, Send, BookMarked, Languages, FastForward, Highlighter, BookPlus, LogOut, Key, Zap
 } from 'lucide-react';
 
+// ==========================================
+// 🔴 CÔNG TẮC BẬT/TẮT CHẾ ĐỘ PREVIEW
+// Thay đổi thành "true" CHỈ KHI MUỐN TEST GIAO DIỆN Ở KHUNG BÊN PHẢI.
+// BẮT BUỘC ĐỂ "false" KHI ĐẨY CODE LÊN GITHUB/VERCEL ĐỂ DÙNG MÔI TRƯỜNG THẬT.
+// ==========================================
+const IS_PREVIEW_MODE = false; 
+
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, where, getDocs } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, where, getDocs, setDoc } from 'firebase/firestore';
 
 // --- FIREBASE INITIALIZATION (MÁY CHỦ CỦA BẠN) ---
 let app, auth, db, appId;
-try {
-  const firebaseConfig = {
-    apiKey: "AIzaSyB-jyWPSmuq2Y76Luk78nax87Jq2X-iTKc",
-    authDomain: "max-academy-a6b50.firebaseapp.com",
-    projectId: "max-academy-a6b50",
-    storageBucket: "max-academy-a6b50.firebasestorage.app",
-    messagingSenderId: "648894411192",
-    appId: "1:648894411192:web:4e01eae686379de7b5df4d"
-  };
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  db = getFirestore(app);
-  appId = 'max-academy-pro-prod'; 
-} catch (e) {
-  console.error("Firebase init error:", e);
+if (!IS_PREVIEW_MODE) {
+  try {
+    const firebaseConfig = {
+      apiKey: "AIzaSyB-jyWPSmuq2Y76Luk78nax87Jq2X-iTKc",
+      authDomain: "max-academy-a6b50.firebaseapp.com",
+      projectId: "max-academy-a6b50",
+      storageBucket: "max-academy-a6b50.firebasestorage.app",
+      messagingSenderId: "648894411192",
+      appId: "1:648894411192:web:4e01eae686379de7b5df4d"
+    };
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    appId = 'max-academy-pro-prod'; 
+  } catch (e) {
+    console.error("Firebase init error:", e);
+  }
 }
 
 const TOPICS = [
@@ -93,6 +102,8 @@ const SAMPLE_PROMPTS = {
 const MODEL_NAME = "gemini-2.5-flash"; 
 
 async function fetchWithRetry(options, retries = 3) {
+  if (IS_PREVIEW_MODE) return { candidates: [{ content: { parts: [{ text: JSON.stringify({ error: "Lỗi kết nối AI khi đang trong chế độ Xem Trước (Preview Mode)." }) }] } }] }; 
+
   const apiKey = localStorage.getItem('gemini_api_key');
   if (!apiKey) throw new Error("MISSING_API_KEY");
   
@@ -166,11 +177,14 @@ const getFullSentenceDetails = (fullText, errorText, correctedText) => {
 
 export default function App() {
   // --- AUTH & PERMISSION STATES ---
-  const [user, setUser] = useState(null);
-  const [isAuthorized, setIsAuthorized] = useState(null); 
+  const [user, setUser] = useState(IS_PREVIEW_MODE ? { email: 'tester@preview.com', uid: 'mock-user-123' } : null);
+  const [isAuthorized, setIsAuthorized] = useState(IS_PREVIEW_MODE ? true : null); 
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Thống kê chuỗi ngày học (Streak)
+  const [userStats, setUserStats] = useState(IS_PREVIEW_MODE ? { currentStreak: 4, longestStreak: 12, lastWriteDate: new Date(Date.now() - 86400000).toLocaleDateString('en-CA') } : { currentStreak: 0, longestStreak: 0, lastWriteDate: null });
 
   const [activeTab, setActiveTab] = useState('practice'); 
   
@@ -216,8 +230,14 @@ export default function App() {
   // Evaluation & Data
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState(null);
-  const [sampleEssays, setSampleEssays] = useState([]);
-  const [vocabularies, setVocabularies] = useState([]);
+  
+  const [sampleEssays, setSampleEssays] = useState(IS_PREVIEW_MODE ? [
+    { id: 's1', topic: 'education', subtopic: 'edu_role', prompt: 'Some people believe that university education should be free for everyone...', content: 'This is a sample essay content for testing UI...' }
+  ] : []);
+  const [vocabularies, setVocabularies] = useState(IS_PREVIEW_MODE ? [
+    { id: 'v1', topicId: 'environment', subtopicId: 'env_prob', phrase: 'environmental degradation', translation: 'sự suy thoái môi trường', examples: ['This policy aims to halt **environmental degradation**.', 'Rapid **environmental degradation** is a serious issue.'] },
+    { id: 'v2', topicId: 'general', phrase: 'a heated debate', translation: 'một cuộc tranh luận nảy lửa', examples: ['There is **a heated debate** over this matter.', ''] }
+  ] : []);
   const [evaluationsHistory, setEvaluationsHistory] = useState([]);
   
   const [mindMapData, setMindMapData] = useState(null);
@@ -230,7 +250,7 @@ export default function App() {
   
   const [activeCommentIndex, setActiveCommentIndex] = useState(null);
   const [correctionAttempts, setCorrectionAttempts] = useState({});
-  const [isBatchChecking, setIsBatchChecking] = useState(false); // Thêm state cho việc chấm gộp
+  const [isBatchChecking, setIsBatchChecking] = useState(false); 
   const commentRefs = useRef({});
 
   const [evalWidth, setEvalWidth] = useState(420);
@@ -282,6 +302,7 @@ export default function App() {
 
   // --- LOGIN & WHITELIST CHECK ---
   useEffect(() => {
+    if (IS_PREVIEW_MODE) return;
     if (!auth) return;
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
@@ -313,22 +334,34 @@ export default function App() {
     }
   }, [isAuthorized]);
 
-  // --- FETCH USER DATA ---
+  // --- FETCH USER DATA (FIREBASE THEO THỜI GIAN THỰC) ---
   useEffect(() => {
+    if (IS_PREVIEW_MODE) return;
     if (!user || isAuthorized !== true || !db || !appId) return;
+    
+    // Lấy thông tin Streak
+    const statsRef = doc(db, 'artifacts', appId, 'users', user.uid, 'user_info', 'stats');
+    const unsubscribeStats = onSnapshot(statsRef, (docSnap) => {
+       if (docSnap.exists()) {
+          setUserStats(docSnap.data());
+       }
+    });
+
     const samplesRef = collection(db, 'artifacts', appId, 'users', user.uid, 'sample_essays');
     const unsubscribeSamples = onSnapshot(samplesRef, (snapshot) => {
       setSampleEssays(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
+    
     const vocabRef = collection(db, 'artifacts', appId, 'users', user.uid, 'vocabulary');
     const unsubscribeVocab = onSnapshot(vocabRef, (snapshot) => {
       setVocabularies(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
+    
     const evalsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'evaluations');
     const unsubscribeEvals = onSnapshot(evalsRef, (snapshot) => {
       setEvaluationsHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
-    return () => { unsubscribeSamples(); unsubscribeVocab(); unsubscribeEvals(); };
+    return () => { unsubscribeStats(); unsubscribeSamples(); unsubscribeVocab(); unsubscribeEvals(); };
   }, [user, isAuthorized]);
 
   // --- THUẬT TOÁN "CỬA SỔ TRƯỢT" (ROLLING WINDOW) KIỂM SOÁT RPM ---
@@ -341,18 +374,22 @@ export default function App() {
   }, []);
 
   const checkAndRecordApiCall = () => {
-    if (apiTimestamps.length >= 15) {
-      showToast("⚡ Năng lượng AI đã cạn. Hệ thống đang tự hồi phục, vui lòng đợi vài giây!", "error", 5000);
-      return false; // Chặn lệnh gọi
+    if (IS_PREVIEW_MODE) {
+        showToast("AI bị tắt trong chế độ Preview. Hãy thiết lập IS_PREVIEW_MODE = false để đẩy lên Môi trường thật", "info", 5000);
+        return false;
     }
     
-    // Cảnh báo preemptive ở lần chạm mốc 14
+    if (apiTimestamps.length >= 15) {
+      showToast("⚡ Năng lượng AI đã cạn. Hệ thống đang tự hồi phục, vui lòng đợi vài giây!", "error", 5000);
+      return false; 
+    }
+    
     if (apiTimestamps.length === 13) { 
       showToast("⚠️ Chú ý: Năng lượng AI sắp cạn (14/15). Hãy tạm dừng vài giây để hệ thống phục hồi nhé!", "error", 6000);
     }
 
     setApiTimestamps(prev => [...prev, Date.now()]);
-    return true; // Cho phép đi tiếp
+    return true; 
   };
 
   // --- ĐỒNG HỒ COOLDOWN CHO COPILOT @@ ---
@@ -367,6 +404,8 @@ export default function App() {
   }, [copilotCooldown]);
 
   const handleLogin = async () => {
+    if (IS_PREVIEW_MODE) return showToast("Chức năng Login bị tắt trong bản Preview.", "info");
+    
     setIsLoggingIn(true);
     const provider = new GoogleAuthProvider();
     try { await signInWithPopup(auth, provider); } 
@@ -374,7 +413,14 @@ export default function App() {
     finally { setIsLoggingIn(false); }
   };
 
-  const handleLogout = async () => { await signOut(auth); };
+  const handleLogout = async () => { 
+    if (IS_PREVIEW_MODE) {
+        setUser(null);
+        setIsAuthorized(null);
+    } else {
+        await signOut(auth); 
+    }
+  };
 
   const handleSaveApiKey = () => {
     if (tempApiKey.trim()) {
@@ -492,7 +538,7 @@ export default function App() {
     const handleMouseUp = () => { if (isDraggingRef.current) { isDraggingRef.current = false; document.body.style.cursor = 'default'; } };
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-    return () => { document.removeEventListener('mousemove', handleMouseMove); document.removeEventListener('mousemove', handleMouseUp); };
+    return () => { document.removeEventListener('mousemove', handleMouseMove); document.removeEventListener('mouseup', handleMouseUp); };
   }, []);
 
   const startDrag = (e) => { isDraggingRef.current = true; document.body.style.cursor = 'col-resize'; };
@@ -557,11 +603,21 @@ export default function App() {
 
     try {
       if (newVocab.id) {
-        await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'vocabulary', newVocab.id), { topicId: newVocab.topic || '', subtopicId: newVocab.subtopic || '', phrase: targetPhrase, translation: newVocab.translation || '', examples: [newVocab.example1 || '', newVocab.example2 || ''] });
-        showToast("Đã cập nhật từ vựng!", "success");
+          if (IS_PREVIEW_MODE) {
+              setVocabularies(prev => prev.map(v => v.id === newVocab.id ? { ...v, topicId: newVocab.topic || '', subtopicId: newVocab.subtopic || '', phrase: targetPhrase, translation: newVocab.translation || '', examples: [newVocab.example1 || '', newVocab.example2 || ''] } : v));
+              showToast("Đã cập nhật từ vựng (MOCK)!", "success");
+          } else {
+              await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'vocabulary', newVocab.id), { topicId: newVocab.topic || '', subtopicId: newVocab.subtopic || '', phrase: targetPhrase, translation: newVocab.translation || '', examples: [newVocab.example1 || '', newVocab.example2 || ''] });
+              showToast("Đã cập nhật từ vựng!", "success");
+          }
       } else {
-        await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'vocabulary'), { topicId: newVocab.topic || '', subtopicId: newVocab.subtopic || '', phrase: targetPhrase, translation: newVocab.translation || '', examples: [newVocab.example1 || '', newVocab.example2 || ''], createdAt: new Date().toISOString() });
-        showToast("Đã lưu từ vựng vào kho!", "success");
+          if (IS_PREVIEW_MODE) {
+              setVocabularies(prev => [{ id: Date.now().toString(), topicId: newVocab.topic || '', subtopicId: newVocab.subtopic || '', phrase: targetPhrase, translation: newVocab.translation || '', examples: [newVocab.example1 || '', newVocab.example2 || ''], createdAt: new Date().toISOString() }, ...prev]);
+              showToast("Đã lưu từ vựng vào kho (MOCK)!", "success");
+          } else {
+              await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'vocabulary'), { topicId: newVocab.topic || '', subtopicId: newVocab.subtopic || '', phrase: targetPhrase, translation: newVocab.translation || '', examples: [newVocab.example1 || '', newVocab.example2 || ''], createdAt: new Date().toISOString() });
+              showToast("Đã lưu từ vựng vào kho!", "success");
+          }
       }
       setShowVocabModal(false);
     } catch (error) { showToast("Lỗi lưu trữ: " + error.message, "error"); }
@@ -678,7 +734,14 @@ export default function App() {
   };
 
   const handleEvaluate = async () => {
+    const minWords = writingTarget === 'full' ? 150 : 50;
     if (wordCount < 30) return showToast("Vui lòng viết ít nhất 30 từ để AI có thể đánh giá.", "error");
+    
+    const meetsStreakReq = wordCount >= minWords;
+    if (!meetsStreakReq) {
+       showToast(`Bài viết của bạn chưa đủ độ dài (${minWords} từ) để được cộng chuỗi Streak. AI vẫn sẽ chấm điểm nhé!`, "info", 6000);
+    }
+
     if (!checkAndRecordApiCall()) return;
 
     setIsEvaluating(true); setIsTimerRunning(false); setActiveCommentIndex(null); setCorrectionAttempts({});
@@ -703,7 +766,43 @@ export default function App() {
       });
       const evaluation = parseGeminiResponse(result.candidates[0].content.parts[0].text);
       setEvaluationResult(evaluation);
-      await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'evaluations'), { prompt, wordCount, target: writingTarget, overallBand: evaluation.overallBand, createdAt: new Date().toISOString() });
+      
+      if (!IS_PREVIEW_MODE) {
+         await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'evaluations'), { prompt, wordCount, target: writingTarget, overallBand: evaluation.overallBand, createdAt: new Date().toISOString() });
+      } else {
+         setEvaluationsHistory(prev => [{ id: Date.now().toString(), prompt, wordCount, target: writingTarget, overallBand: evaluation.overallBand, trScore: evaluation.trScore, ccScore: evaluation.ccScore, lrScore: evaluation.lrScore, graScore: evaluation.graScore, createdAt: new Date().toISOString() }, ...prev]);
+      }
+
+      // XỬ LÝ LOGIC STREAK NẾU ĐẠT ĐIỀU KIỆN SỐ TỪ
+      if (meetsStreakReq) {
+         const today = new Date().toLocaleDateString('en-CA'); 
+         const yesterdayDate = new Date();
+         yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+         const yesterday = yesterdayDate.toLocaleDateString('en-CA');
+
+         let newStreak = userStats.currentStreak || 0;
+         if (userStats.lastWriteDate !== today) {
+            if (userStats.lastWriteDate === yesterday) {
+               newStreak += 1;
+            } else {
+               newStreak = 1;
+            }
+         }
+         
+         const newLongest = Math.max(userStats.longestStreak || 0, newStreak);
+         const newStats = { currentStreak: newStreak, longestStreak: newLongest, lastWriteDate: today };
+
+         if (!IS_PREVIEW_MODE) {
+            await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'user_info', 'stats'), newStats);
+         } else {
+            setUserStats(newStats);
+         }
+
+         if (userStats.lastWriteDate !== today) {
+            showToast(`🔥 Tuyệt vời! Bạn đã hoàn thành bài tập. Streak: ${newStreak} ngày liên tiếp!`, "success", 5000);
+         }
+      }
+
     } catch (error) { handleApiError(error); } finally { setIsEvaluating(false); }
   };
 
@@ -804,7 +903,15 @@ export default function App() {
     else showToast("Không tìm thấy câu này trong bài viết.", "info");
   };
   const triggerDelete = (col, id) => setDeleteConfirm({ col, id });
-  const confirmDeleteAction = async () => { await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, deleteConfirm.col, deleteConfirm.id)); setDeleteConfirm(null); };
+  const confirmDeleteAction = async () => { 
+      if (IS_PREVIEW_MODE) {
+          if (deleteConfirm.col === 'vocabulary') setVocabularies(prev => prev.filter(v => v.id !== deleteConfirm.id));
+          if (deleteConfirm.col === 'sample_essays') setSampleEssays(prev => prev.filter(s => s.id !== deleteConfirm.id));
+      } else {
+          await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, deleteConfirm.col, deleteConfirm.id)); 
+      }
+      setDeleteConfirm(null); 
+  };
   const handleCheckQuiz = () => {
     let results = {};
     quizData.forEach((q, index) => { results[index] = (quizAnswers[index] || '').toLowerCase().trim().replace(/[.,!?]/g, '') === q.answer.toLowerCase().trim().replace(/[.,!?]/g, ''); });
@@ -823,8 +930,23 @@ export default function App() {
     if (sampleEssays.some(s => (s.prompt || '').toLowerCase().trim() === newSample.prompt.toLowerCase().trim() && s.id !== newSample.id)) return showToast("Đề bài này đã tồn tại!", "error");
     try {
       const safeData = { topic: newSample.topic || '', subtopic: newSample.subtopic || '', prompt: newSample.prompt || '', content: newSample.content || '' };
-      if (newSample.id) { await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'sample_essays', newSample.id), safeData); showToast("Đã cập nhật!", "success"); } 
-      else { await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'sample_essays'), { ...safeData, createdAt: new Date().toISOString() }); showToast("Đã thêm!", "success"); }
+      if (newSample.id) { 
+          if (IS_PREVIEW_MODE) {
+              setSampleEssays(prev => prev.map(s => s.id === newSample.id ? { ...s, ...safeData } : s));
+              showToast("Đã cập nhật (MOCK)!", "success"); 
+          } else {
+              await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'sample_essays', newSample.id), safeData); 
+              showToast("Đã cập nhật!", "success"); 
+          }
+      } else { 
+          if (IS_PREVIEW_MODE) {
+              setSampleEssays(prev => [{ id: Date.now().toString(), ...safeData, createdAt: new Date().toISOString() }, ...prev]);
+              showToast("Đã thêm (MOCK)!", "success"); 
+          } else {
+              await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'sample_essays'), { ...safeData, createdAt: new Date().toISOString() }); 
+              showToast("Đã thêm!", "success");
+          }
+      }
       setShowSampleModal(false); setNewSample({ topic: '', subtopic: '', prompt: '', content: '' });
     } catch (error) { showToast("Lỗi: " + error.message, "error"); }
   };
@@ -833,10 +955,17 @@ export default function App() {
     setIsRestoring(true);
     try {
       const data = JSON.parse(importDataString);
-      for (const s of data.sampleEssays || []) { const { id, ...r } = s; await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'sample_essays'), r); }
-      for (const v of data.vocabularies || []) { const { id, ...r } = v; await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'vocabulary'), r); }
-      for (const e of data.evaluationsHistory || []) { const { id, ...r } = e; await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'evaluations'), r); }
-      setShowImportModal(false); setImportDataString(''); showToast(`Đã khôi phục thành công!`, 'success');
+      if (IS_PREVIEW_MODE) {
+          if (data.sampleEssays) setSampleEssays(prev => [...data.sampleEssays, ...prev]);
+          if (data.vocabularies) setVocabularies(prev => [...data.vocabularies, ...prev]);
+          showToast(`Đã khôi phục thành công (MOCK)!`, 'success');
+      } else {
+          for (const s of data.sampleEssays || []) { const { id, ...r } = s; await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'sample_essays'), r); }
+          for (const v of data.vocabularies || []) { const { id, ...r } = v; await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'vocabulary'), r); }
+          for (const e of data.evaluationsHistory || []) { const { id, ...r } = e; await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'evaluations'), r); }
+          showToast(`Đã khôi phục thành công!`, 'success');
+      }
+      setShowImportModal(false); setImportDataString(''); 
     } catch (e) { showToast("Dữ liệu JSON không hợp lệ.", "error"); } finally { setIsRestoring(false); }
   };
 
@@ -883,7 +1012,10 @@ export default function App() {
       <div className="flex items-center gap-3 shrink-0">
         <div className="bg-emerald-500 p-1.5 rounded-lg text-white"><PenTool size={18} /></div>
         <div className="flex flex-col">
-          <h1 className="text-white font-bold text-base leading-tight">Max Academy</h1>
+          <h1 className="text-white font-bold text-base leading-tight flex items-center gap-2">
+            Max Academy 
+            {IS_PREVIEW_MODE && <span className="bg-rose-500 text-[9px] px-1.5 py-0.5 rounded shadow-sm">PREVIEW MODE</span>}
+          </h1>
           <p className="text-[10px] text-emerald-400 font-medium leading-tight">Crafted by Nguyễn Mai Bá Trường</p>
         </div>
       </div>
@@ -903,6 +1035,11 @@ export default function App() {
       </nav>
 
       <div className="flex items-center gap-2 shrink-0">
+        {/* NÚT STREAK MỚI Ở TOP NAV */}
+        <div className="bg-orange-50 text-orange-600 px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-black text-sm border border-orange-200 shadow-sm cursor-help" title={`Kỷ lục dài nhất: ${userStats.longestStreak || 0} ngày`}>
+           🔥 {userStats.currentStreak || 0}
+        </div>
+
         <div className="bg-slate-800 px-3 py-1.5 rounded-lg flex flex-col hidden sm:flex">
            <span className="text-[9px] text-slate-400 uppercase font-black">Học viên</span>
            <span className="text-xs text-white font-medium truncate max-w-[120px]">{user.email}</span>
@@ -922,11 +1059,22 @@ export default function App() {
         return "Viết trọn vẹn bài essay của bạn tại đây..." + hint;
     };
 
-    // Đếm số lượng câu đã sửa nhưng chưa được kiểm tra
     const pendingCount = Object.values(correctionAttempts).filter(a => a.text && a.text.trim() && !a.reviewed).length;
 
     return (
-    <div className="flex-1 flex p-2 lg:p-3 gap-3 min-h-0 relative">
+    <div className="flex-1 flex flex-col p-2 lg:p-3 gap-3 min-h-0 relative">
+      
+      {/* BANNER STREAK ĐỘNG VIÊN */}
+      <div className="bg-orange-50 border border-orange-200 text-orange-800 px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm shrink-0">
+         <span className="text-lg">🔥</span> 
+         {userStats.currentStreak > 0 
+            ? `Tuyệt vời! Bạn đang giữ chuỗi ${userStats.currentStreak} ngày. Hãy hoàn thành 1 bài hôm nay để duy trì phong độ nhé!`
+            : `Bắt đầu chuỗi ngày luyện viết của bạn ngay hôm nay!`}
+         {(userStats.longestStreak > 0 && userStats.longestStreak > (userStats.currentStreak || 0)) && (
+            <span className="text-orange-600 ml-auto hidden md:inline text-xs bg-orange-100 px-2 py-1 rounded-md">Kỷ lục cá nhân: {userStats.longestStreak} ngày</span>
+         )}
+      </div>
+
       <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col min-w-0 relative">
         
         <div className="border-b border-slate-100 p-2 lg:p-3 bg-slate-50 flex flex-col gap-2 shrink-0">
@@ -1030,7 +1178,9 @@ export default function App() {
              </div>
           </div>
           <div className="flex items-center gap-2 ml-auto">
-             <button onClick={handleParaphraseFromFooter} className="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-md font-bold text-xs">Sửa Câu</button>
+             <button onClick={handleParaphraseFromFooter} className="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-md font-bold text-xs flex items-center gap-1.5">
+               <Sparkles size={12}/> ✨ Nâng cấp câu
+             </button>
              <button onClick={handleEvaluate} disabled={isEvaluating || !essay.trim()} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-md font-bold text-xs flex items-center gap-1">
                 {isEvaluating ? <Loader2 size={12} className="animate-spin" /> : <Brain size={12} />} Chấm điểm
              </button>
@@ -1147,7 +1297,7 @@ export default function App() {
                                   )}
                                   
                                   <div className="pt-4 border-t border-slate-200">
-                                     <span className="text-[11px] font-black uppercase text-emerald-600 tracking-wider mb-2 flex items-center gap-1.5"><CheckCircle2 size={14}/> Câu mẫu chuẩn (Band 8.0)</span>
+                                     <span className="text-[11px] font-black uppercase text-emerald-600 tracking-wider mb-2 flex items-center gap-1.5"><CheckCircle2 size={14}/> ✅ Câu sửa hoàn thiện</span>
                                      <div className="bg-white border border-emerald-200 p-3.5 rounded-xl text-[13px] text-slate-700 leading-relaxed shadow-sm">
                                         {sentenceDetails.before}
                                         <span className="bg-emerald-100 text-emerald-700 font-bold px-1.5 mx-0.5 rounded border border-emerald-200">{c.corrected}</span>
@@ -1577,7 +1727,7 @@ export default function App() {
         <div id="selection-popup" className="fixed z-[150] bg-slate-900 text-white rounded-lg shadow-xl flex items-center gap-1 p-1 transform -translate-x-1/2 animate-fadeIn" style={{ top: selectionPopup.y, left: selectionPopup.x }}>
           {activeTab === 'practice' && (
             <>
-              <button onMouseDown={(e) => { e.preventDefault(); handleOpenParaphraseFromSelection(); }} className="px-3 py-1.5 hover:bg-slate-700 rounded-md text-xs font-bold flex items-center gap-1.5"><Wand2 size={12} /> Sửa câu</button>
+              <button onMouseDown={(e) => { e.preventDefault(); handleOpenParaphraseFromSelection(); }} className="px-3 py-1.5 hover:bg-slate-700 rounded-md text-xs font-bold flex items-center gap-1.5"><Wand2 size={12} /> ✨ Nâng cấp câu</button>
               <div className="w-px h-4 bg-slate-700"></div>
             </>
           )}
@@ -1915,7 +2065,7 @@ export default function App() {
       {showParaphraseModal && (
         <div className="fixed inset-0 z-[160] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
            <div className="bg-white rounded-3xl w-[95%] max-w-xl animate-slideUp overflow-hidden">
-              <div className="p-5 border-b font-bold text-sm flex justify-between items-center bg-slate-50">Sửa Câu (Paraphrase) <button onClick={() => setShowParaphraseModal(false)} className="hover:bg-slate-200 p-2 rounded-xl text-slate-500"><X size={20}/></button></div>
+              <div className="p-5 border-b font-bold text-sm flex justify-between items-center bg-slate-50">✨ Nâng cấp câu (Paraphrase) <button onClick={() => setShowParaphraseModal(false)} className="hover:bg-slate-200 p-2 rounded-xl text-slate-500"><X size={20}/></button></div>
               <div className="p-8 space-y-6">
                  <textarea className="w-full p-4 border rounded-2xl text-sm font-medium bg-white focus:ring-2 focus:ring-indigo-500 outline-none" rows={3} value={paraphraseInput} onChange={(e) => setParaphraseInput(e.target.value)} placeholder="Nhập câu cần sửa..."/>
                  {isParaphrasing ? <div className="text-center text-sm py-4 text-indigo-600 font-bold"><Loader2 className="animate-spin inline mr-2"/> Đang phân tích và nâng cấp câu...</div> : 
@@ -1926,7 +2076,7 @@ export default function App() {
                     </div>
                   ) : null}
               </div>
-              <div className="p-6 bg-slate-50 flex justify-end"><button onClick={handleParaphrase} disabled={isParaphrasing || !paraphraseInput.trim()} className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg">Sửa câu này</button></div>
+              <div className="p-6 bg-slate-50 flex justify-end"><button onClick={handleParaphrase} disabled={isParaphrasing || !paraphraseInput.trim()} className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg flex items-center gap-2"><Sparkles size={16}/> Nâng cấp câu này</button></div>
            </div>
         </div>
       )}
