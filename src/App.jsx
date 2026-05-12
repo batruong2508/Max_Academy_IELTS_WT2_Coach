@@ -40,6 +40,7 @@ if (!IS_PREVIEW_MODE) {
   }
 }
 
+// --- CẬP NHẬT TOPICS VÀ SUBTOPICS DỰA TRÊN FILE PDF "LEAN TOPIC VOCAB" ---
 const TOPICS = [
   { id: 'general', name: 'General (Đa chủ đề)' },
   { id: 'education', name: 'Education (Giáo dục)' },
@@ -47,52 +48,61 @@ const TOPICS = [
   { id: 'technology', name: 'Technology (Công nghệ)' },
   { id: 'society', name: 'Society (Xã hội)' },
   { id: 'health', name: 'Health (Sức khỏe)' },
-  { id: 'work', name: 'Work (Công việc)' },
-  { id: 'crime', name: 'Crime (Tội phạm)' }
+  { id: 'work', name: 'Work (Công việc & Kinh tế)' },
+  { id: 'crime', name: 'Crime (Tội phạm & Luật pháp)' },
+  { id: 'media', name: 'Media & Arts (Truyền thông & Nghệ thuật)' }
 ];
 
 const SUBTOPICS = {
   education: [
-    { id: 'edu_role', name: 'Vai trò của giáo dục' },
-    { id: 'edu_method', name: 'Phương pháp & Môn học' },
-    { id: 'edu_behavior', name: 'Hành vi & Kỷ luật' },
-    { id: 'edu_policy', name: 'Chính sách & Chi phí' }
+    { id: 'edu_purpose', name: 'Mục đích giáo dục & Hướng nghiệp' }, // Gom: Main function of university/school, University vs Work
+    { id: 'edu_method', name: 'Môi trường & Phương pháp học' }, // Gom: Single sex vs coed, Online learning/study, Living at home vs boarding, Student exchange
+    { id: 'edu_curriculum', name: 'Chương trình học & Đánh giá' }, // Gom: University subjects, Academic tests, Homework, Children learning another language
+    { id: 'edu_behavior', name: 'Hành vi & Kỷ luật' }, // Gom: Study hard, Punishment, Rewards, Student behavior, Bullying, Competition vs co-operation
+    { id: 'edu_policy', name: 'Chính sách trường học & Tài chính' } // Gom: Free education, Private schools, Uniforms, Gap year
   ],
   environment: [
-    { id: 'env_prob', name: 'Vấn đề môi trường' },
-    { id: 'env_sol', name: 'Giải pháp bảo vệ' },
-    { id: 'env_animal', name: 'Bảo vệ động vật' }
+    { id: 'env_climate', name: 'Biến đổi khí hậu & Năng lượng' },
+    { id: 'env_pollution', name: 'Ô nhiễm & Xử lý rác thải' },
+    { id: 'env_animal', name: 'Bảo tồn động vật & Sinh thái' },
+    { id: 'env_responsibility', name: 'Trách nhiệm cá nhân vs Chính phủ' }
   ],
   technology: [
-    { id: 'tech_impact', name: 'Tác động đời sống' },
-    { id: 'tech_ai', name: 'AI & Tự động hóa' },
-    { id: 'tech_comm', name: 'Giao tiếp trực tuyến' }
+    { id: 'tech_ai', name: 'Trí tuệ nhân tạo & Tự động hóa' },
+    { id: 'tech_comm', name: 'Giao tiếp & Mạng xã hội' },
+    { id: 'tech_lifestyle', name: 'Tác động đời sống & Quyền riêng tư' },
+    { id: 'tech_space', name: 'Khám phá vũ trụ' }
   ],
   society: [
-    { id: 'soc_culture', name: 'Văn hóa & Toàn cầu hóa' },
-    { id: 'soc_generation', name: 'Khoảng cách thế hệ' },
-    { id: 'soc_housing', name: 'Nhà ở & Đô thị hóa' }
+    { id: 'soc_culture', name: 'Văn hóa, Lịch sử & Toàn cầu hóa' },
+    { id: 'soc_age', name: 'Khoảng cách thế hệ & Dân số già' },
+    { id: 'soc_urban', name: 'Đô thị hóa, Nhà ở & Giao thông' },
+    { id: 'soc_equality', name: 'Bất bình đẳng & Phúc lợi xã hội' }
   ],
   health: [
-    { id: 'health_diet', name: 'Chế độ ăn uống' },
-    { id: 'health_gov', name: 'Trách nhiệm chính phủ' },
-    { id: 'health_stress', name: 'Sức khỏe tinh thần' }
+    { id: 'health_diet', name: 'Dinh dưỡng, Thể thao & Lối sống' },
+    { id: 'health_gov', name: 'Trách nhiệm phòng bệnh & Y tế công' },
+    { id: 'health_mental', name: 'Sức khỏe tinh thần & Áp lực' }
   ],
   work: [
-    { id: 'work_balance', name: 'Cân bằng cuộc sống' },
-    { id: 'work_remote', name: 'Làm việc từ xa' },
-    { id: 'work_satisfaction', name: 'Sự hài lòng & Lương' }
+    { id: 'work_balance', name: 'Cân bằng cuộc sống & Áp lực' },
+    { id: 'work_environment', name: 'Môi trường làm việc & Lương thưởng' },
+    { id: 'work_future', name: 'Việc làm tương lai & Thất nghiệp' }
   ],
   crime: [
-    { id: 'crime_punishment', name: 'Hình phạt & Nhà tù' },
+    { id: 'crime_punishment', name: 'Hình phạt & Hệ thống nhà tù' },
     { id: 'crime_juvenile', name: 'Tội phạm vị thành niên' },
-    { id: 'crime_prevention', name: 'Phòng chống tội phạm' }
+    { id: 'crime_prevention', name: 'Phòng chống tội phạm & An ninh' }
+  ],
+  media: [
+    { id: 'media_news', name: 'Tin tức, Báo chí & Quảng cáo' },
+    { id: 'media_arts', name: 'Nghệ thuật, Bảo tàng & Nghệ sĩ' }
   ]
 };
 
 const SAMPLE_PROMPTS = {
-  edu_role: "Some people believe that the main aim of university education is to help graduates find better jobs, while others think that university education has much wider benefits for individuals and society. Discuss both views and give your opinion.",
-  env_prob: "Global warming is one of the most serious issues that the world is facing today. What are the causes of global warming and what measures can governments and individuals take to tackle the issue?",
+  edu_purpose: "Some people believe that the main aim of university education is to help graduates find better jobs, while others think that university education has much wider benefits for individuals and society. Discuss both views and give your opinion.",
+  env_climate: "Global warming is one of the most serious issues that the world is facing today. What are the causes of global warming and what measures can governments and individuals take to tackle the issue?",
   tech_ai: "Some people believe that artificial intelligence will eventually replace human workers in most industries. To what extent do you agree or disagree?",
   soc_culture: "The increase in international travel and business has led to a situation where people are adopting a single global culture. Do you think the advantages of this outweigh the disadvantages?",
   health_gov: "Some people say that it is the responsibility of individuals to take care of their own health and diet. Others think that governments should make sure that their citizens are healthy. Discuss both views and give your opinion."
@@ -232,13 +242,16 @@ export default function App() {
   const [evaluationResult, setEvaluationResult] = useState(null);
   
   const [sampleEssays, setSampleEssays] = useState(IS_PREVIEW_MODE ? [
-    { id: 's1', topic: 'education', subtopic: 'edu_role', prompt: 'Some people believe that university education should be free for everyone...', content: 'This is a sample essay content for testing UI...' }
+    { id: 's1', topic: 'education', subtopic: 'edu_purpose', prompt: 'Some people believe that university education should be free for everyone...', content: 'This is a sample essay content for testing UI...' }
   ] : []);
   const [vocabularies, setVocabularies] = useState(IS_PREVIEW_MODE ? [
-    { id: 'v1', topicId: 'environment', subtopicId: 'env_prob', phrase: 'environmental degradation', translation: 'sự suy thoái môi trường', examples: ['This policy aims to halt **environmental degradation**.', 'Rapid **environmental degradation** is a serious issue.'] },
+    { id: 'v1', topicId: 'environment', subtopicId: 'env_pollution', phrase: 'environmental degradation', translation: 'sự suy thoái môi trường', examples: ['This policy aims to halt **environmental degradation**.', 'Rapid **environmental degradation** is a serious issue.'] },
     { id: 'v2', topicId: 'general', phrase: 'a heated debate', translation: 'một cuộc tranh luận nảy lửa', examples: ['There is **a heated debate** over this matter.', ''] }
   ] : []);
-  const [evaluationsHistory, setEvaluationsHistory] = useState([]);
+  const [evaluationsHistory, setEvaluationsHistory] = useState(IS_PREVIEW_MODE ? [
+    { id: 'ev1', prompt: 'Sample prompt 1', wordCount: 250, target: 'full', overallBand: 6.5, trScore: 6.0, ccScore: 6.0, lrScore: 7.0, graScore: 7.0, createdAt: new Date().toISOString() },
+    { id: 'ev2', prompt: 'Sample prompt 2', wordCount: 300, target: 'full', overallBand: 7.0, trScore: 7.0, ccScore: 7.0, lrScore: 7.0, graScore: 7.0, createdAt: new Date(Date.now() - 86400000).toISOString() }
+  ] : []);
   
   const [mindMapData, setMindMapData] = useState(null);
   const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
@@ -1062,135 +1075,140 @@ export default function App() {
     const pendingCount = Object.values(correctionAttempts).filter(a => a.text && a.text.trim() && !a.reviewed).length;
 
     return (
-    <div className="flex-1 flex flex-col p-2 lg:p-3 gap-3 min-h-0 relative">
+    <div className="flex-1 flex p-2 lg:p-3 gap-3 min-h-0 relative"> {/* Main flex-row container for side-by-side layout */}
       
-      {/* BANNER STREAK ĐỘNG VIÊN */}
-      <div className="bg-orange-50 border border-orange-200 text-orange-800 px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm shrink-0">
-         <span className="text-lg">🔥</span> 
-         {userStats.currentStreak > 0 
-            ? `Tuyệt vời! Bạn đang giữ chuỗi ${userStats.currentStreak} ngày. Hãy hoàn thành 1 bài hôm nay để duy trì phong độ nhé!`
-            : `Bắt đầu chuỗi ngày luyện viết của bạn ngay hôm nay!`}
-         {(userStats.longestStreak > 0 && userStats.longestStreak > (userStats.currentStreak || 0)) && (
-            <span className="text-orange-600 ml-auto hidden md:inline text-xs bg-orange-100 px-2 py-1 rounded-md">Kỷ lục cá nhân: {userStats.longestStreak} ngày</span>
-         )}
-      </div>
-
-      <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col min-w-0 relative">
+      {/* Editor Column */}
+      <div className="flex-1 flex flex-col min-w-0 gap-3 relative">
         
-        <div className="border-b border-slate-100 p-2 lg:p-3 bg-slate-50 flex flex-col gap-2 shrink-0">
-          <div className="flex items-center justify-between gap-3 overflow-x-auto [&::-webkit-scrollbar]:hidden">
-            <div className="flex items-center gap-1.5 shrink-0">
-              <select className="bg-white border border-slate-200 rounded-md px-2 py-1 outline-none text-xs w-[120px]" value={selectedTopic} onChange={(e) => {setSelectedTopic(e.target.value); setSelectedSubtopic('');}}>
-                <option value="">Chủ đề</option> {TOPICS.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-              <select className="bg-white border border-slate-200 rounded-md px-2 py-1 outline-none text-xs w-[120px]" value={selectedSubtopic} onChange={(e) => setSelectedSubtopic(e.target.value)} disabled={!selectedTopic || selectedTopic === 'general'}>
-                <option value="">Chủ đề phụ</option> {selectedTopic && SUBTOPICS[selectedTopic]?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-              <button onClick={handleGeneratePrompt} className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 px-2.5 py-1 rounded-md font-bold text-xs flex items-center gap-1"><RotateCcw size={12} /> Tạo Đề</button>
-            </div>
-            
-            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-               <span className="text-[10px] font-bold text-slate-500 uppercase hidden md:inline">Mục tiêu:</span>
-               <select className="bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold rounded-md px-2 py-1 outline-none text-xs cursor-pointer hover:bg-indigo-100 transition-colors" value={writingTarget} onChange={(e) => setWritingTarget(e.target.value)}>
-                  <option value="full">📝 Viết Cả bài (Full)</option>
-                  <option value="intro_conc">🎯 Mở bài & Kết bài</option>
-                  <option value="body">🧩 Chỉ viết Thân bài</option>
-               </select>
-            </div>
-          </div>
-
-          <textarea ref={promptRef} className="w-full bg-transparent text-slate-800 font-bold outline-none resize-y min-h-[40px] max-h-[120px] custom-scrollbar text-sm mt-2" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Nhập đề bài..." rows={2} />
-          
-          <div className="flex flex-wrap gap-1.5">
-            <button onClick={handleStartGuidedWriting} disabled={isGeneratingArticle} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors disabled:opacity-50">
-              {isGeneratingArticle ? <Loader2 size={12} className="animate-spin"/> : <BookOpen size={12} />} Hướng dẫn viết
-            </button>
-            <button onClick={() => { closeAllSidebars(); handleSuggestPromptVocab(); }} disabled={isGeneratingPromptVocabs} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-100 text-emerald-700 disabled:opacity-50">
-              {isGeneratingPromptVocabs ? <Loader2 size={12} className="animate-spin"/> : <Tags size={12} />} 10 Từ Ăn Điểm
-            </button>
-            <button onClick={() => { closeAllSidebars(); setShowStructureModal(true); }} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-rose-100 text-rose-700"><Columns size={12} /> Cấu trúc 40/60</button>
-            <button onClick={handleSuggestIdeas} disabled={isGeneratingIdeas} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-amber-100 text-amber-700 disabled:opacity-50">
-              {isGeneratingIdeas ? <Loader2 size={12} className="animate-spin"/> : <Lightbulb size={12} />} Mind Map Idea
-            </button>
-            <button onClick={handleViewSampleFromPractice} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-blue-100 text-blue-700"><BookPlus size={12} /> Bài mẫu</button>
-          </div>
-        </div>
-
-        <div className="flex-1 p-3 relative flex flex-col relative">
-          <textarea 
-             ref={editorRef} 
-             className="w-full h-full resize-none outline-none text-slate-700 leading-relaxed text-[15px] lg:text-base placeholder-slate-400 custom-scrollbar relative z-0" 
-             placeholder={getPlaceholderText()} 
-             value={essay} 
-             onChange={(e) => {
-                 setEssay(e.target.value);
-                 if (e.target.value.trim() === '') setCopilotUses(3); 
-             }} 
-             onKeyDown={handleKeyDown}
-             spellCheck={false} 
-          />
-          
-          {/* LỚP PHỦ HIỂN THỊ MENU COPILOT */}
-          {(isCopilotLoading || showCopilotMenu) && (
-            <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-center animate-fadeIn rounded-b-xl">
-               <div className="bg-white p-5 rounded-2xl shadow-2xl border border-slate-200 w-full max-w-sm">
-                  {isCopilotLoading ? (
-                     <div className="text-center py-4 flex flex-col items-center justify-center text-indigo-600">
-                        <Loader2 className="animate-spin mb-3" size={32}/>
-                        <p className="font-bold text-sm">AI đang tìm cụm từ cho: <span className="text-rose-500">"{copilotWordInfo.word}"</span></p>
-                        <p className="text-xs text-slate-400 mt-2">Dựa trên ngữ cảnh bài viết của bạn...</p>
-                     </div>
-                  ) : (
-                     <div className="animate-slideUp">
-                        <div className="flex justify-between items-center mb-3">
-                           <h4 className="font-black text-slate-700 text-sm flex items-center gap-1.5"><Sparkles size={16} className="text-amber-500"/> Chọn từ thay thế:</h4>
-                           <button onClick={() => setShowCopilotMenu(false)} className="text-slate-400 hover:text-rose-500 p-1 bg-slate-100 rounded-md"><X size={14}/></button>
-                        </div>
-                        <div className="space-y-2">
-                           {copilotOptions.map((opt, i) => (
-                              <button key={i} onClick={() => applyCopilotOption(opt.phrase)} className="w-full text-left p-3 rounded-xl border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50 transition-all flex justify-between items-center group">
-                                 <span className="font-bold text-indigo-900 group-hover:text-indigo-700">{opt.phrase}</span>
-                                 <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md">Band {opt.band}</span>
-                              </button>
-                           ))}
-                        </div>
-                     </div>
-                  )}
-               </div>
-            </div>
+        {/* BANNER STREAK ĐỘNG VIÊN */}
+        <div className="bg-orange-50 border border-orange-200 text-orange-800 px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm shrink-0">
+          <span className="text-lg">🔥</span> 
+          {userStats.currentStreak > 0 
+              ? `Tuyệt vời! Bạn đang giữ chuỗi ${userStats.currentStreak} ngày. Hãy hoàn thành 1 bài hôm nay để duy trì phong độ nhé!`
+              : `Bắt đầu chuỗi ngày luyện viết của bạn ngay hôm nay!`}
+          {(userStats.longestStreak > 0 && userStats.longestStreak > (userStats.currentStreak || 0)) && (
+              <span className="text-orange-600 ml-auto hidden md:inline text-xs bg-orange-100 px-2 py-1 rounded-md">Kỷ lục cá nhân: {userStats.longestStreak} ngày</span>
           )}
         </div>
-        
-        <div className="border-t border-slate-200 bg-slate-50 p-2.5 flex flex-wrap items-center justify-between shrink-0 gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-             <div className="px-2 py-1 rounded bg-white border flex items-center gap-1.5 text-xs font-bold text-slate-700" title="Giới hạn 15 lệnh/phút của Google">
-                <Zap size={14} className={apiTimestamps.length >= 12 ? "text-rose-500" : "text-amber-500"} />
-                {15 - apiTimestamps.length}/15
-             </div>
-             <div className="px-2 py-1 rounded bg-white border text-xs font-bold">{wordCount} từ</div>
-             <div className="bg-white px-2 py-1 rounded border flex items-center gap-1.5 text-xs font-mono font-bold text-slate-700">
-                {formatTime(timeRemaining)}
-                <button onClick={() => setIsTimerRunning(!isTimerRunning)} className="p-0.5 hover:text-emerald-600 transition-colors">{isTimerRunning ? <Pause size={12}/> : <Play size={12}/>}</button>
-                <button onClick={() => { setIsTimerRunning(false); setTimeRemaining(40 * 60); }} className="p-0.5 text-slate-400 hover:text-slate-600 transition-colors" title="Reset thời gian"><RotateCcw size={12}/></button>
-             </div>
-             <div className="px-2 py-1 rounded bg-indigo-50 border border-indigo-100 flex items-center gap-1 text-xs font-bold text-indigo-700">
-                🪄 Gợi ý từ (@@): {copilotUses}/3
-             </div>
+
+        <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col min-w-0 relative">
+          
+          <div className="border-b border-slate-100 p-2 lg:p-3 bg-slate-50 flex flex-col gap-2 shrink-0 rounded-t-xl">
+            <div className="flex items-center justify-between gap-3 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <select className="bg-white border border-slate-200 rounded-md px-2 py-1 outline-none text-xs w-[120px]" value={selectedTopic} onChange={(e) => {setSelectedTopic(e.target.value); setSelectedSubtopic('');}}>
+                  <option value="">Chủ đề</option> {TOPICS.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+                <select className="bg-white border border-slate-200 rounded-md px-2 py-1 outline-none text-xs w-[120px]" value={selectedSubtopic} onChange={(e) => setSelectedSubtopic(e.target.value)} disabled={!selectedTopic || selectedTopic === 'general'}>
+                  <option value="">Chủ đề phụ</option> {selectedTopic && SUBTOPICS[selectedTopic]?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+                <button onClick={handleGeneratePrompt} className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 px-2.5 py-1 rounded-md font-bold text-xs flex items-center gap-1"><RotateCcw size={12} /> Tạo Đề</button>
+              </div>
+              
+              <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                <span className="text-[10px] font-bold text-slate-500 uppercase hidden md:inline">Mục tiêu:</span>
+                <select className="bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold rounded-md px-2 py-1 outline-none text-xs cursor-pointer hover:bg-indigo-100 transition-colors" value={writingTarget} onChange={(e) => setWritingTarget(e.target.value)}>
+                    <option value="full">📝 Viết Cả bài (Full)</option>
+                    <option value="intro_conc">🎯 Mở bài & Kết bài</option>
+                    <option value="body">🧩 Chỉ viết Thân bài</option>
+                </select>
+              </div>
+            </div>
+
+            <textarea ref={promptRef} className="w-full bg-transparent text-slate-800 font-bold outline-none resize-y min-h-[40px] max-h-[120px] custom-scrollbar text-sm mt-2" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Nhập đề bài..." rows={2} />
+            
+            <div className="flex flex-wrap gap-1.5">
+              <button onClick={handleStartGuidedWriting} disabled={isGeneratingArticle} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors disabled:opacity-50">
+                {isGeneratingArticle ? <Loader2 size={12} className="animate-spin"/> : <BookOpen size={12} />} Hướng dẫn viết
+              </button>
+              <button onClick={() => { closeAllSidebars(); handleSuggestPromptVocab(); }} disabled={isGeneratingPromptVocabs} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-100 text-emerald-700 disabled:opacity-50">
+                {isGeneratingPromptVocabs ? <Loader2 size={12} className="animate-spin"/> : <Tags size={12} />} 10 Từ Ăn Điểm
+              </button>
+              <button onClick={() => { closeAllSidebars(); setShowStructureModal(true); }} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-rose-100 text-rose-700"><Columns size={12} /> Cấu trúc 40/60</button>
+              <button onClick={handleSuggestIdeas} disabled={isGeneratingIdeas} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-amber-100 text-amber-700 disabled:opacity-50">
+                {isGeneratingIdeas ? <Loader2 size={12} className="animate-spin"/> : <Lightbulb size={12} />} Mind Map Idea
+              </button>
+              <button onClick={handleViewSampleFromPractice} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-blue-100 text-blue-700"><BookPlus size={12} /> Bài mẫu</button>
+            </div>
           </div>
-          <div className="flex items-center gap-2 ml-auto">
-             <button onClick={handleParaphraseFromFooter} className="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-md font-bold text-xs flex items-center gap-1.5">
-               <Sparkles size={12}/> ✨ Nâng cấp câu
-             </button>
-             <button onClick={handleEvaluate} disabled={isEvaluating || !essay.trim()} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-md font-bold text-xs flex items-center gap-1">
-                {isEvaluating ? <Loader2 size={12} className="animate-spin" /> : <Brain size={12} />} Chấm điểm
-             </button>
+
+          <div className="flex-1 p-3 relative flex flex-col relative">
+            <textarea 
+              ref={editorRef} 
+              className="w-full h-full resize-none outline-none text-slate-700 leading-relaxed text-[15px] lg:text-base placeholder-slate-400 custom-scrollbar relative z-0" 
+              placeholder={getPlaceholderText()} 
+              value={essay} 
+              onChange={(e) => {
+                  setEssay(e.target.value);
+                  if (e.target.value.trim() === '') setCopilotUses(3); 
+              }} 
+              onKeyDown={handleKeyDown}
+              spellCheck={false} 
+            />
+            
+            {/* LỚP PHỦ HIỂN THỊ MENU COPILOT */}
+            {(isCopilotLoading || showCopilotMenu) && (
+              <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-center animate-fadeIn rounded-b-xl">
+                <div className="bg-white p-5 rounded-2xl shadow-2xl border border-slate-200 w-full max-w-sm">
+                    {isCopilotLoading ? (
+                      <div className="text-center py-4 flex flex-col items-center justify-center text-indigo-600">
+                          <Loader2 className="animate-spin mb-3" size={32}/>
+                          <p className="font-bold text-sm">AI đang tìm cụm từ cho: <span className="text-rose-500">"{copilotWordInfo.word}"</span></p>
+                          <p className="text-xs text-slate-400 mt-2">Dựa trên ngữ cảnh bài viết của bạn...</p>
+                      </div>
+                    ) : (
+                      <div className="animate-slideUp">
+                          <div className="flex justify-between items-center mb-3">
+                            <h4 className="font-black text-slate-700 text-sm flex items-center gap-1.5"><Sparkles size={16} className="text-amber-500"/> Chọn từ thay thế:</h4>
+                            <button onClick={() => setShowCopilotMenu(false)} className="text-slate-400 hover:text-rose-500 p-1 bg-slate-100 rounded-md"><X size={14}/></button>
+                          </div>
+                          <div className="space-y-2">
+                            {copilotOptions.map((opt, i) => (
+                                <button key={i} onClick={() => applyCopilotOption(opt.phrase)} className="w-full text-left p-3 rounded-xl border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50 transition-all flex justify-between items-center group">
+                                  <span className="font-bold text-indigo-900 group-hover:text-indigo-700">{opt.phrase}</span>
+                                  <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md">Band {opt.band}</span>
+                                </button>
+                            ))}
+                          </div>
+                      </div>
+                    )}
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <div className="border-t border-slate-200 bg-slate-50 p-2.5 flex flex-wrap items-center justify-between shrink-0 gap-2 rounded-b-xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="px-2 py-1 rounded bg-white border flex items-center gap-1.5 text-xs font-bold text-slate-700" title="Giới hạn 15 lệnh/phút của Google">
+                  <Zap size={14} className={apiTimestamps.length >= 12 ? "text-rose-500" : "text-amber-500"} />
+                  {15 - apiTimestamps.length}/15
+              </div>
+              <div className="px-2 py-1 rounded bg-white border text-xs font-bold">{wordCount} từ</div>
+              <div className="bg-white px-2 py-1 rounded border flex items-center gap-1.5 text-xs font-mono font-bold text-slate-700">
+                  {formatTime(timeRemaining)}
+                  <button onClick={() => setIsTimerRunning(!isTimerRunning)} className="p-0.5 hover:text-emerald-600 transition-colors">{isTimerRunning ? <Pause size={12}/> : <Play size={12}/>}</button>
+                  <button onClick={() => { setIsTimerRunning(false); setTimeRemaining(40 * 60); }} className="p-0.5 text-slate-400 hover:text-slate-600 transition-colors" title="Reset thời gian"><RotateCcw size={12}/></button>
+              </div>
+              <div className="px-2 py-1 rounded bg-indigo-50 border border-indigo-100 flex items-center gap-1 text-xs font-bold text-indigo-700">
+                  🪄 Gợi ý từ (@@): {copilotUses}/3
+              </div>
+            </div>
+            <div className="flex items-center gap-2 ml-auto">
+              <button onClick={handleParaphraseFromFooter} className="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-md font-bold text-xs flex items-center gap-1.5">
+                <Sparkles size={12}/> ✨ Nâng cấp câu
+              </button>
+              <button onClick={handleEvaluate} disabled={isEvaluating || !essay.trim()} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-md font-bold text-xs flex items-center gap-1">
+                  {isEvaluating ? <Loader2 size={12} className="animate-spin" /> : <Brain size={12} />} Chấm điểm
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </div> {/* End Editor Column */}
 
+      {/* Evaluation Results Side Panel */}
       {evaluationResult && (
         <div 
-           className="flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-slideUp z-10 shrink-0 relative"
+           className="flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-slideRight z-10 shrink-0 relative"
            style={{ width: `${evalWidth}px` }}
         >
            <div 
@@ -1413,7 +1431,6 @@ export default function App() {
           </div>
        </div>
        
-       {/* ĐÃ CHUYỂN TỪ GRID SANG FLEX-COL (DẠNG DANH SÁCH LIST CARD) */}
        <div className="flex flex-col gap-5 overflow-y-auto custom-scrollbar flex-1 pb-10 content-start pr-2">
           {filteredVocabs.length === 0 ? <div className="py-20 text-center text-slate-300 font-bold border-2 border-dashed rounded-3xl">Chưa có từ vựng nào trong chủ đề này.</div> :
           filteredVocabs.map(v => (
