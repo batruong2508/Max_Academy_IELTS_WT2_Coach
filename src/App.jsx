@@ -1625,8 +1625,8 @@ export default function App() {
                
                <div className="bg-slate-50 p-4 md:p-6 rounded-xl md:rounded-2xl border border-slate-200 shadow-sm">
                   <h4 className="font-black text-slate-800 mb-2 md:mb-3 text-sm md:text-base flex items-center gap-2"><span className="w-5 h-5 md:w-6 md:h-6 bg-slate-200 rounded-full flex items-center justify-center text-[10px] md:text-xs">1</span> Mở bài (Introduction)</h4>
-                  <p className="mb-3 text-xs md:text-sm"><strong>Công thức:</strong> Hook (Dẫn dắt) + Paraphrase Topic + Thesis Statement (Trả lời trực tiếp câu hỏi).</p>
-                  <div className="bg-white p-3 md:p-4 rounded-lg md:rounded-xl border-l-4 border-l-indigo-500 text-indigo-800 font-medium shadow-sm text-xs md:text-sm">It is often argued that [Paraphrase Topic]. While there are valid arguments in favor of [Side A / 40%], I firmly believe that [Side B / 60%] is far more significant.</div>
+                  <p className="mb-3 text-xs md:text-sm"><strong>Công thức:</strong> Background Sentence (Paraphrase đề bài) + Thesis Statement (Trả lời trực tiếp câu hỏi).</p>
+                  <div className="bg-white p-3 md:p-4 rounded-lg md:rounded-xl border-l-4 border-l-indigo-500 text-indigo-800 font-medium shadow-sm text-xs md:text-sm">These days, it is often argued that [Paraphrase Topic]. While there are valid arguments in favor of [Side A / 40%], I firmly believe that [Side B / 60%] is much more significant.</div>
                </div>
 
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
@@ -1675,9 +1675,9 @@ export default function App() {
                     <div className="bg-white p-4 md:p-5 rounded-lg md:rounded-xl border border-amber-100 shadow-sm hover:border-amber-300 transition-colors">
                        <p className="text-[9px] md:text-[10px] font-black uppercase text-emerald-500 mb-2 md:mb-3 tracking-widest bg-emerald-50 inline-block px-2 py-1 rounded">Mở đoạn Body 2 (Phản biện)</p>
                        <ul className="list-disc pl-4 space-y-2 md:space-y-3 text-[11px] md:text-xs font-medium text-slate-700">
-                         <li>However, the aforementioned advantages <span className="font-black text-amber-600 text-xs md:text-sm">are eclipsed by</span> the drawbacks of... (bị lu mờ bởi)</li>
-                         <li><span className="font-black text-amber-600 text-xs md:text-sm">That being said,</span> I am convinced that... (Mặc dù vậy)</li>
-                         <li>Nevertheless, these factors <span className="font-black text-amber-600 text-xs md:text-sm">are of lesser significance</span> when we consider...</li>
+                         <li><span className="font-black text-amber-600 text-xs md:text-sm">Despite the arguments above,</span> I believe that... (Bất chấp những lập luận trên...)</li>
+                         <li><span className="font-black text-amber-600 text-xs md:text-sm">However, I would argue that</span> the benefits of [Side B] are much more significant. (Tuy nhiên, tôi cho rằng...)</li>
+                         <li><span className="font-black text-amber-600 text-xs md:text-sm">On the other hand,</span> the drawbacks of [Side A] cannot be overlooked. (Mặt khác, điểm yếu của... không thể bỏ qua)</li>
                        </ul>
                     </div>
                   </div>
@@ -1686,9 +1686,9 @@ export default function App() {
                      <p className="text-[11px] md:text-xs font-black uppercase text-amber-600 mb-1">Nối từ Idea 1 sang Idea 2 mượt mà (Transitions)</p>
                      <p className="text-[10px] md:text-[11px] mb-3 md:mb-4 text-slate-500 italic">Thay vì dùng "Secondly" hay "In addition", hãy thử dùng:</p>
                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-3">
-                       <div className="bg-slate-50 p-2 md:p-3 rounded-lg border border-slate-100"><span className="font-black text-amber-600 block mb-0.5 md:mb-1 text-xs md:text-sm">Beyond that,</span> <span className="text-[9px] md:text-[10px] text-slate-500 block">(Bên cạnh đó, ...)</span></div>
-                       <div className="bg-slate-50 p-2 md:p-3 rounded-lg border border-slate-100"><span className="font-black text-amber-600 block mb-0.5 md:mb-1 text-xs md:text-sm">Coupled with this is</span> <span className="text-[9px] md:text-[10px] text-slate-500 block">(Đi đôi với điều này là...)</span></div>
-                       <div className="bg-slate-50 p-2 md:p-3 rounded-lg border border-slate-100"><span className="font-black text-amber-600 block mb-0.5 md:mb-1 text-xs md:text-sm">A further compelling argument is</span> <span className="text-[9px] md:text-[10px] text-slate-500 block">(Một lập luận thuyết phục khác là...)</span></div>
+                       <div className="bg-slate-50 p-2 md:p-3 rounded-lg border border-slate-100"><span className="font-black text-amber-600 block mb-0.5 md:mb-1 text-xs md:text-sm">Another important factor is</span> <span className="text-[9px] md:text-[10px] text-slate-500 block">(Một yếu tố quan trọng khác là...)</span></div>
+                       <div className="bg-slate-50 p-2 md:p-3 rounded-lg border border-slate-100"><span className="font-black text-amber-600 block mb-0.5 md:mb-1 text-xs md:text-sm">Adding to this point,</span> <span className="text-[9px] md:text-[10px] text-slate-500 block">(Thêm vào ý này,...)</span></div>
+                       <div className="bg-slate-50 p-2 md:p-3 rounded-lg border border-slate-100"><span className="font-black text-amber-600 block mb-0.5 md:mb-1 text-xs md:text-sm">An equally important reason is</span> <span className="text-[9px] md:text-[10px] text-slate-500 block">(Một lý do quan trọng không kém là...)</span></div>
                      </div>
                   </div>
                </div>
