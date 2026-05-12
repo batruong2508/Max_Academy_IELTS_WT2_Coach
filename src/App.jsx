@@ -1624,9 +1624,38 @@ export default function App() {
             <div className="p-4 md:p-8 overflow-y-auto flex-1 min-h-0 custom-scrollbar space-y-6 md:space-y-8 text-sm text-slate-700 leading-relaxed">
                
                <div className="bg-slate-50 p-4 md:p-6 rounded-xl md:rounded-2xl border border-slate-200 shadow-sm">
-                  <h4 className="font-black text-slate-800 mb-2 md:mb-3 text-sm md:text-base flex items-center gap-2"><span className="w-5 h-5 md:w-6 md:h-6 bg-slate-200 rounded-full flex items-center justify-center text-[10px] md:text-xs">1</span> Mở bài (Introduction)</h4>
-                  <p className="mb-3 text-xs md:text-sm"><strong>Công thức:</strong> Background Sentence (Paraphrase đề bài) + Thesis Statement (Trả lời trực tiếp câu hỏi).</p>
-                  <div className="bg-white p-3 md:p-4 rounded-lg md:rounded-xl border-l-4 border-l-indigo-500 text-indigo-800 font-medium shadow-sm text-xs md:text-sm">These days, it is often argued that [Paraphrase Topic]. While there are valid arguments in favor of [Side A / 40%], I firmly believe that [Side B / 60%] is much more significant.</div>
+                  <h4 className="font-black text-slate-800 mb-2 md:mb-3 text-sm md:text-base flex items-center gap-2">
+                      <span className="w-5 h-5 md:w-6 md:h-6 bg-slate-200 rounded-full flex items-center justify-center text-[10px] md:text-xs">1</span> Mở bài (Introduction)
+                  </h4>
+                  <p className="mb-4 text-xs md:text-sm text-slate-700"><strong>Công thức (2 câu):</strong> Background Sentence (Paraphrase đề bài) + Thesis Statement (Trả lời trực tiếp câu hỏi).</p>
+                  
+                  <div className="space-y-3">
+                      <p className="text-[11px] md:text-xs font-black uppercase text-indigo-600 mb-1">Mẫu Thesis cho 4 dạng bài phổ biến:</p>
+                      
+                      {/* Dạng 1: Discuss both views */}
+                      <div className="bg-white p-3 md:p-4 rounded-lg md:rounded-xl border-l-4 border-l-indigo-500 shadow-sm hover:border-indigo-400 transition-colors">
+                          <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Dạng 1: Discuss both views & give opinion</p>
+                          <p className="text-indigo-900 font-medium text-xs md:text-sm">People have different views about [Topic]. While there are valid arguments in favor of [Side A / 40%], I firmly believe that [Side B / 60%] is much more significant.</p>
+                      </div>
+
+                      {/* Dạng 2: Agree / Disagree */}
+                      <div className="bg-white p-3 md:p-4 rounded-lg md:rounded-xl border-l-4 border-l-emerald-500 shadow-sm hover:border-emerald-400 transition-colors">
+                          <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Dạng 2: To what extent do you agree or disagree?</p>
+                          <p className="text-emerald-900 font-medium text-xs md:text-sm">It is often argued that [Topic]. I completely agree/disagree with this perspective because [Reason 1] and [Reason 2].</p>
+                      </div>
+
+                      {/* Dạng 3: Causes & Solutions */}
+                      <div className="bg-white p-3 md:p-4 rounded-lg md:rounded-xl border-l-4 border-l-rose-500 shadow-sm hover:border-rose-400 transition-colors">
+                          <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Dạng 3: Causes & Solutions / Problems & Solutions</p>
+                          <p className="text-rose-900 font-medium text-xs md:text-sm">These days, [Topic] has become a matter of common concern. This problem is primarily caused by [Cause 1], and some viable solutions can be adopted to alleviate it.</p>
+                      </div>
+                      
+                      {/* Dạng 4: Advantages & Disadvantages */}
+                      <div className="bg-white p-3 md:p-4 rounded-lg md:rounded-xl border-l-4 border-l-amber-500 shadow-sm hover:border-amber-400 transition-colors">
+                          <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Dạng 4: Do the advantages outweigh the disadvantages?</p>
+                          <p className="text-amber-900 font-medium text-xs md:text-sm">It is true that [Topic] has become increasingly common. While this trend brings some drawbacks, I believe its benefits are far more significant.</p>
+                      </div>
+                  </div>
                </div>
 
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
