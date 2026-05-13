@@ -229,13 +229,12 @@ export default function App() {
   const [showVocabModal, setShowVocabModal] = useState(false);
   const [showGuidedModal, setShowGuidedModal] = useState(false); 
 
-  // Guided Reading-to-Writing States
-  const [guidedStep, setGuidedStep] = useState('reading'); 
-  const [guidedArticle, setGuidedArticle] = useState(null);
-  const [isGeneratingArticle, setIsGeneratingArticle] = useState(false);
-  const [guidedExercise, setGuidedExercise] = useState(null);
-  const [isGeneratingExercise, setIsGeneratingExercise] = useState(false);
-  const [guidedAnswers, setGuidedAnswers] = useState({});
+  // --- CẬP NHẬT: TÍNH NĂNG GUIDED WRITING WIZARD (CẦM TAY CHỈ VIỆC) ---
+  const [guidedPlan, setGuidedPlan] = useState(null);
+  const [guidedStepIndex, setGuidedStepIndex] = useState(0);
+  const [guidedDrafts, setGuidedDrafts] = useState({ intro: '', body1: '', body2: '', conclusion: '' });
+  const [isGeneratingGuide, setIsGeneratingGuide] = useState(false);
+  const [isGuidedDraft, setIsGuidedDraft] = useState(false); 
 
   // Evaluation & Data
   const [isEvaluating, setIsEvaluating] = useState(false);
@@ -651,7 +650,7 @@ export default function App() {
   const handleGeneratePrompt = () => {
     const randomPrompt = sampleEssays.length > 0 ? sampleEssays[Math.floor(Math.random() * sampleEssays.length)].prompt : (selectedSubtopic && SAMPLE_PROMPTS[selectedSubtopic] ? SAMPLE_PROMPTS[selectedSubtopic] : "Some people think that technology is driving people apart, while others believe it is bringing people closer together. Discuss both views and give your opinion.");
     setPrompt(randomPrompt); setEssay(''); setTimeRemaining(40 * 60); setIsTimerRunning(false); setEvaluationResult(null); closeAllSidebars();
-    setCopilotUses(3); 
+    setCopilotUses(3); setIsGuidedDraft(false); 
   };
 
   const handleSuggestIdeas = async () => {
@@ -697,38 +696,69 @@ export default function App() {
 
   const handleStartGuidedWriting = async () => {
     if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước!", "error");
-    setShowGuidedModal(true); setGuidedStep('reading'); setGuidedArticle(null); setGuidedExercise(null); setGuidedAnswers({}); 
+    setShowGuidedModal(true); 
     if (!checkAndRecordApiCall()) { setShowGuidedModal(false); return; } 
 
-    setIsGeneratingArticle(true);
-    const matchedSamples = sampleEssays.filter(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim()).slice(0, 3);
-    const sampleText = matchedSamples.length > 0 ? matchedSamples.map((s, i) => `Sample ${i+1}:\n${s.content}`).join('\n\n') : "No specific samples available.";
-    const systemInstruction = `Prompt: "${prompt}". Samples: ${sampleText}. 
-    TASK: Write a 500-600 word objective, engaging popular science/news article. Use Band 8.0+ collocations naturally. 
-    Highlight exactly 10 high-value collocations using strictly HTML <b> tags. 
-    Return strictly JSON: {"title": "...", "content": "...", "collocations": [{"phrase": "...", "meaning": "..."}]}`;
-    try {
-      const result = await fetchWithRetry({
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: "Generate Guided Article" }] }], systemInstruction: { parts: [{ text: systemInstruction }] }, generationConfig: { responseMimeType: "application/json" } })
-      });
-      setGuidedArticle(parseGeminiResponse(result.candidates[0].content.parts[0].text));
-    } catch (error) { handleApiError(error); setShowGuidedModal(false); } finally { setIsGeneratingArticle(false); }
-  };
+    setIsGeneratingGuide(true);
+    setGuidedPlan(null); setGuidedDrafts({ intro: '', body1: '', body2: '', conclusion: '' }); setGuidedStepIndex(0);
 
-  const handleGenerateGuidedExercise = async () => {
-    if (!checkAndRecordApiCall()) return; 
-    setGuidedStep('exercise'); setIsGeneratingExercise(true); setGuidedAnswers({}); 
-    const systemInstruction = `Based on this article: "${guidedArticle.title}". Content: "${guidedArticle.content}". 
-    Create a "Summary Completion" exercise. 1 short paragraph (80-100 words), 5 missing phrases ("___") strictly from bolded collocations. Provide 4 distractors.
-    Return strictly JSON: {"summaryText": "...", "wordBank": ["...", "..."], "blanks": [{"id": 0, "answer": "...", "hint": "..."}]}`;
+    const systemInstruction = `You are an expert IELTS Writing Tutor. The student needs to write an essay for this prompt: "${prompt}".
+    Create a 4-step Guided Writing Plan. For Body 1 and Body 2, provide EXACTLY 3 natural, precise, and context-appropriate collocations (Band 7.0 - 7.5) that the student MUST use.
+    
+    CRITICAL RULES FOR VOCABULARY AND GRAMMAR:
+    1. DO NOT use obscure "big words", overly complex grammar, or forced academic jargon (avoid "đao to búa lớn").
+    2. Prioritize clarity, fluency, grammatical accuracy, and natural phrasing. A solid Band 7.5 is the target.
+    3. For each step, provide 2 DIFFERENT grammatical structures for the student to translate the main idea (e.g., clear & accurate vs natural & fluent).
+    
+    Return STRICTLY JSON matching this structure:
+    {
+      "steps": [
+        {
+          "id": "intro", "title": "1. Mở bài (Introduction)", 
+          "instruction": "Paraphrase đề bài và đưa ra Thesis Statement (quan điểm của bạn).", 
+          "structures": [
+            { "name": "Cách 1: Cơ bản, Rõ ràng (Band 6.5-7.0)", "hint": "Gợi ý dịch: Nhiều người cho rằng... Tuy nhiên, tôi hoàn toàn tin rằng..." },
+            { "name": "Cách 2: Tự nhiên, Trôi chảy (Band 7.5)", "hint": "Gợi ý dịch: Mặc dù không thể phủ nhận rằng..., quan điểm của tôi là..." }
+          ],
+          "requiredVocab": []
+        },
+        {
+          "id": "body1", "title": "2. Thân bài 1 (Đoạn nhượng bộ / Mặt trái)", 
+          "instruction": "Viết đoạn Body 1. Bạn BẮT BUỘC phải dùng 3 cụm từ dưới đây vào đoạn văn của mình.", 
+          "structures": [
+            { "name": "Cách 1: Trực tiếp, dễ hiểu", "hint": "Dịch: Một mặt, có vài lý do tại sao [Quan điểm A] hợp lý. Đầu tiên là..." },
+            { "name": "Cách 2: Dùng chủ ngữ giả / Trôi chảy hơn", "hint": "Dịch: Có thể hiểu được tại sao một số người ủng hộ [Quan điểm A]. Lập luận chính nằm ở chỗ..." }
+          ],
+          "requiredVocab": [{"phrase": "collocation 1", "meaning": "nghĩa tiếng việt"}, {"phrase": "collocation 2", "meaning": "nghĩa tiếng việt"}, {"phrase": "collocation 3", "meaning": "nghĩa tiếng việt"}]
+        },
+        {
+          "id": "body2", "title": "3. Thân bài 2 (Đoạn khẳng định / Mặt lợi)", 
+          "instruction": "Viết đoạn Body 2 bảo vệ quan điểm chính. BẮT BUỘC dùng 3 cụm từ dưới đây.", 
+          "structures": [
+            { "name": "Cách 1: Chuyển ý mạch lạc", "hint": "Dịch: Mặt khác, tôi cho rằng những lợi ích thì quan trọng hơn nhiều. Cụ thể là..." },
+            { "name": "Cách 2: Nhấn mạnh, tự nhiên", "hint": "Dịch: Bất chấp những lập luận trên, tôi vẫn tin tưởng mãnh liệt rằng..." }
+          ],
+          "requiredVocab": [{"phrase": "collocation 4", "meaning": "nghĩa tiếng việt"}, {"phrase": "collocation 5", "meaning": "nghĩa tiếng việt"}, {"phrase": "collocation 6", "meaning": "nghĩa tiếng việt"}]
+        },
+        {
+          "id": "conclusion", "title": "4. Kết bài (Conclusion)", 
+          "instruction": "Khẳng định lại quan điểm và tóm tắt ngắn gọn 2 ý chính.", 
+          "structures": [
+            { "name": "Cách 1: Cấu trúc Tóm lại", "hint": "Dịch: Tóm lại, mặc dù có những lo ngại về..., tôi vẫn tin rằng..." },
+            { "name": "Cách 2: Rút ra hệ quả", "hint": "Dịch: Nói tóm lại, dẫu cho [A] có những điểm mạnh, [B] vẫn là yếu tố mang tính quyết định bởi vì..." }
+          ],
+          "requiredVocab": []
+        }
+      ]
+    }`;
+
     try {
       const result = await fetchWithRetry({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: "Generate Summary Completion" }] }], systemInstruction: { parts: [{ text: systemInstruction }] }, generationConfig: { responseMimeType: "application/json" } })
+        body: JSON.stringify({ contents: [{ parts: [{ text: "Generate Guided Writing Plan" }] }], systemInstruction: { parts: [{ text: systemInstruction }] }, generationConfig: { responseMimeType: "application/json" } })
       });
-      setGuidedExercise(parseGeminiResponse(result.candidates[0].content.parts[0].text));
-    } catch (error) { handleApiError(error); setGuidedStep('reading'); } finally { setIsGeneratingExercise(false); }
+      setGuidedPlan(parseGeminiResponse(result.candidates[0].content.parts[0].text));
+    } catch (error) { handleApiError(error); setShowGuidedModal(false); } finally { setIsGeneratingGuide(false); }
   };
 
   const handleParaphrase = async () => { 
@@ -763,7 +793,7 @@ export default function App() {
     let targetInstruction = writingTarget === 'full' ? `Grade the FULL ESSAY.` : writingTarget === 'intro_conc' ? `The student is ONLY writing the INTRODUCTION and CONCLUSION. Evaluate based on Paraphrasing and Thesis.` : `The student is ONLY writing BODY PARAGRAPH(S). Evaluate based on flow, coherence and topic sentences.`;
     
     // ÁP DỤNG LUẬT CHẤM ĐIỂM (ROUND DOWN) THEO BAND DESCRIPTORS CHUẨN CỦA IELTS
-    const systemInstruction = `You are a strict and expert IELTS Writing Task 2 examiner. 
+    let systemInstruction = `You are a strict and expert IELTS Writing Task 2 examiner. 
     1. SCORING CRITERIA: Grade the essay based STRICTLY on the official IELTS Writing Task 2 Band Descriptors (Public Version) for Task Response (TR), Coherence & Cohesion (CC), Lexical Resource (LR), and Grammatical Range & Accuracy (GRA).
     2. SCORING RULE (CRITICAL): Calculate the average of the 4 criteria. For the final Overall Band, you MUST ROUND DOWN to the nearest 0.5 or whole band. 
        - Example: TR=6, CC=7, LR=7, GRA=7 (Average 6.75) => Overall Band MUST be 6.5.
@@ -771,6 +801,19 @@ export default function App() {
        - Example: TR=6, CC=6, LR=7, GRA=7 (Average 6.5) => Overall Band MUST be 6.5.
     3. TARGET: ${targetInstruction} Provide specific comments for each criterion based on the descriptors, and detailedCorrections: [{original, corrected, explanation}].
     4. Return strictly JSON: { "overallBand": 6.5, "trScore": 6.0, "trComment": "...", "ccScore": 7.0, "ccComment": "...", "lrScore": 6.0, "lrComment": "...", "graScore": 6.0, "graComment": "...", "detailedCorrections": [...], "polishedEssay": "Band 8.0 polished version of what student wrote." }`;
+
+    if (isGuidedDraft) {
+        systemInstruction = `You are an expert English grammar tutor. The student wrote this essay using a Guided Translation Tool where ideas and structure were completely provided.
+        1. SCORING CRITERIA: Automatically assign 9.0 for Task Response (TR) and Coherence & Cohesion (CC) since ideas were provided. Grade ONLY Lexical Resource (LR) and Grammatical Range & Accuracy (GRA) strictly based on how they translated and connected sentences.
+        2. SCORING RULE: Calculate the average of the 4 criteria. Round down to the nearest 0.5.
+        3. COMMENTS: 
+           - trComment: "✅ Ý tưởng và lập luận đã được hỗ trợ bởi hệ thống Guided Wizard. Bạn đã làm rất tốt việc bám sát sườn bài!"
+           - ccComment: "✅ Cấu trúc đoạn và tính liên kết được hỗ trợ bởi hệ thống. Rất tốt!"
+           - lrComment: Evaluate if they used the suggested collocations correctly and naturally.
+           - graComment: Focus heavily on grammar, syntax, verb tenses, and preposition mistakes made during translation.
+        4. TARGET: ${targetInstruction} Provide detailedCorrections: [{original, corrected, explanation}].
+        5. Return strictly JSON: { "overallBand": 7.0, "trScore": 9.0, "trComment": "...", "ccScore": 9.0, "ccComment": "...", "lrScore": 6.0, "lrComment": "...", "graScore": 6.0, "graComment": "...", "detailedCorrections": [...], "polishedEssay": "Band 8.0 polished version." }`;
+    }
     
     try {
       const result = await fetchWithRetry({
@@ -834,7 +877,7 @@ export default function App() {
        return showToast("Vui lòng viết lại ít nhất 1 câu lỗi trước khi kiểm tra.", "info");
     }
 
-    if (!checkAndRecordApiCall()) return;
+    if (!checkAndRecordApiCall()) return; // Chỉ tiêu tốn đúng 1 lượt API cho toàn bộ batch
 
     setIsBatchChecking(true);
     
@@ -879,7 +922,8 @@ export default function App() {
             return newState;
         });
 
-        showToast(`Đã kiểm tra thành công ${aiReview.results.length} câu!`, "success");
+        // THÔNG BÁO TỐI ƯU UX
+        showToast(`Tuyệt vời! Đã chấm xong ${aiReview.results.length} câu ⚡`, "success", 5000);
 
     } catch (e) { 
         handleApiError(e); 
@@ -1118,8 +1162,8 @@ export default function App() {
             <textarea ref={promptRef} className="w-full bg-transparent text-slate-800 font-bold outline-none resize-y min-h-[40px] max-h-[120px] custom-scrollbar text-sm mt-2" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Nhập đề bài..." rows={2} />
             
             <div className="flex flex-wrap gap-1.5">
-              <button onClick={handleStartGuidedWriting} disabled={isGeneratingArticle} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors disabled:opacity-50">
-                {isGeneratingArticle ? <Loader2 size={12} className="animate-spin"/> : <BookOpen size={12} />} Hướng dẫn viết
+              <button onClick={handleStartGuidedWriting} disabled={isGeneratingGuide} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors disabled:opacity-50">
+                {isGeneratingGuide ? <Loader2 size={12} className="animate-spin"/> : <BookOpen size={12} />} Hướng dẫn viết
               </button>
               <button onClick={() => { closeAllSidebars(); handleSuggestPromptVocab(); }} disabled={isGeneratingPromptVocabs} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-100 text-emerald-700 disabled:opacity-50">
                 {isGeneratingPromptVocabs ? <Loader2 size={12} className="animate-spin"/> : <Tags size={12} />} 10 Từ Ăn Điểm
@@ -1133,6 +1177,12 @@ export default function App() {
           </div>
 
           <div className="flex-1 p-3 relative flex flex-col relative">
+            {isGuidedDraft && (
+                <div className="mb-3 bg-indigo-50 border border-indigo-200 text-indigo-700 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm animate-fadeIn shrink-0">
+                    <Wand2 size={16} className="text-indigo-500 shrink-0"/>
+                    Chế độ Guided: Điểm Ý tưởng (TR/CC) sẽ tự động đạt 9.0. AI sẽ tập trung soi cực gắt Lỗi Ngữ Pháp & Từ Vựng (GRA/LR) của bạn trong quá trình dịch.
+                </div>
+            )}
             <textarea 
               ref={editorRef} 
               className="w-full h-full resize-none outline-none text-slate-700 leading-relaxed text-[15px] lg:text-base placeholder-slate-400 custom-scrollbar relative z-0" 
@@ -1140,7 +1190,7 @@ export default function App() {
               value={essay} 
               onChange={(e) => {
                   setEssay(e.target.value);
-                  if (e.target.value.trim() === '') setCopilotUses(3); 
+                  if (e.target.value.trim() === '') { setCopilotUses(3); setIsGuidedDraft(false); } 
               }} 
               onKeyDown={handleKeyDown}
               spellCheck={false} 
@@ -1336,7 +1386,7 @@ export default function App() {
                             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-black disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg transition-all"
                         >
                             {isBatchChecking ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />} 
-                            {isBatchChecking ? 'Đang chấm điểm các câu...' : `Kiểm tra tất cả câu đã sửa (${pendingCount})`}
+                            {isBatchChecking ? 'Đang chấm điểm các câu...' : `Chấm điểm tất cả ${pendingCount} câu`}
                         </button>
                     </div>
 
@@ -2074,90 +2124,134 @@ export default function App() {
         </div>
       )}
 
-      {/* --- MODAL HƯỚNG DẪN VIẾT BỊ XÓA NHẦM ĐÃ ĐƯỢC KHÔI PHỤC --- */}
       {showGuidedModal && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
           <div className="bg-slate-50 rounded-3xl shadow-2xl w-[95%] max-w-5xl max-h-[90vh] flex flex-col animate-slideUp overflow-hidden">
              <div className="p-4 md:p-5 border-b flex justify-between items-center bg-white shrink-0">
-                <h3 className="font-black text-indigo-600 text-base md:text-lg flex items-center gap-2"><BookOpen size={22}/> Hướng Dẫn Viết (Reading to Writing)</h3>
+                <h3 className="font-black text-indigo-600 text-base md:text-lg flex items-center gap-2"><Wand2 size={22}/> Guided Writing Wizard (Step-by-step)</h3>
                 <button onClick={() => setShowGuidedModal(false)} className="hover:bg-slate-100 p-2 rounded-xl text-slate-500 transition-colors"><X size={20}/></button>
              </div>
 
              <div className="p-4 md:p-8 overflow-y-auto flex-1 min-h-0 custom-scrollbar relative">
-                {isGeneratingArticle ? (
+                {isGeneratingGuide ? (
                    <div className="flex flex-col items-center justify-center py-20 h-full">
                      <Loader2 className="animate-spin mb-4 text-indigo-500" size={48}/>
-                     <p className="font-black text-slate-700 text-lg">AI đang viết bài báo phân tích...</p>
-                     <p className="text-sm text-slate-500 mt-2">Tổng hợp ý tưởng từ các bài mẫu Band 8.0</p>
+                     <p className="font-black text-slate-700 text-lg">AI đang phân tích đề bài...</p>
+                     <p className="text-sm text-slate-500 mt-2">Đang xây dựng chiến thuật và trích xuất từ vựng Band 8.0+</p>
                    </div>
-                ) : guidedArticle && guidedStep === 'reading' ? (
-                   <div className="flex flex-col lg:flex-row gap-6">
-                      <div className="flex-1 space-y-4">
-                         <h4 className="text-xl md:text-2xl font-black text-slate-800 leading-snug">{guidedArticle.title}</h4>
-                         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 text-slate-700 leading-relaxed font-serif text-lg text-justify"
-                              dangerouslySetInnerHTML={{ __html: guidedArticle.content.replace(/\n/g, '<br/>') }} />
+                ) : guidedPlan && guidedPlan.steps ? (
+                   <div className="max-w-4xl mx-auto flex flex-col h-full">
+                      
+                      {/* Progress Bar */}
+                      <div className="flex items-center justify-between mb-8 relative">
+                         <div className="absolute left-0 top-1/2 w-full h-1 bg-slate-200 -z-10 -translate-y-1/2"></div>
+                         {guidedPlan.steps.map((step, idx) => (
+                            <div key={idx} className={`flex flex-col items-center gap-2 bg-slate-50 px-2 cursor-pointer transition-colors`} onClick={() => setGuidedStepIndex(idx)}>
+                               <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm border-4 transition-colors ${idx === guidedStepIndex ? 'bg-indigo-600 text-white border-indigo-200 shadow-md transform scale-110' : idx < guidedStepIndex ? 'bg-emerald-500 text-white border-emerald-100' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                                  {idx < guidedStepIndex ? <CheckCircle2 size={16}/> : idx + 1}
+                               </div>
+                               <span className={`text-[10px] font-bold uppercase tracking-wider hidden sm:block ${idx === guidedStepIndex ? 'text-indigo-600' : 'text-slate-400'}`}>{step.id}</span>
+                            </div>
+                         ))}
                       </div>
-                      <div className="w-full lg:w-[320px] shrink-0 flex flex-col gap-4">
-                         <div className="bg-indigo-50 p-5 rounded-2xl border border-indigo-100 shadow-sm sticky top-0">
-                            <h5 className="font-black text-indigo-800 mb-3 flex items-center gap-2"><Sparkles size={18}/> 10 Cụm từ Band 8.0+</h5>
-                            <ul className="space-y-3">
-                               {guidedArticle.collocations?.map((c, i) => (
-                                 <li key={i} className="bg-white p-3 rounded-xl border border-indigo-50 shadow-sm">
-                                    <span className="font-bold text-indigo-700 block text-sm">{c.phrase}</span>
-                                    <span className="text-xs text-slate-500">{c.meaning}</span>
-                                 </li>
-                               ))}
-                            </ul>
-                            <button onClick={handleGenerateGuidedExercise} disabled={isGeneratingExercise} className="mt-5 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2">
-                               {isGeneratingExercise ? <Loader2 size={18} className="animate-spin"/> : <ArrowRight size={18}/>}
-                               Làm bài tập điền từ
+
+                      {/* Current Step Content */}
+                      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
+                         <div className="p-5 md:p-6 border-b border-slate-100 bg-indigo-50/30">
+                            <h4 className="text-lg md:text-xl font-black text-slate-800 mb-2">{guidedPlan.steps[guidedStepIndex].title}</h4>
+                            <p className="text-slate-600 text-sm">{guidedPlan.steps[guidedStepIndex].instruction}</p>
+                            
+                            {/* Khu vực Gợi ý cấu trúc (CẬP NHẬT MỚI DẠNG GRID) */}
+                            <div className="mt-4 p-4 md:p-5 bg-amber-50 border border-amber-100 rounded-2xl flex flex-col gap-3 shadow-inner">
+                               <div className="flex items-center gap-2 mb-1">
+                                 <Lightbulb size={20} className="text-amber-500 shrink-0"/>
+                                 <span className="text-[11px] font-black uppercase text-amber-700 tracking-widest">💡 Chọn 1 trong các Cấu trúc sau để dịch:</span>
+                               </div>
+                               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                 {guidedPlan.steps[guidedStepIndex].structures?.map((str, idx) => (
+                                    <div key={idx} className="bg-white p-3.5 rounded-xl border border-amber-200/60 shadow-sm hover:border-amber-400 transition-colors">
+                                       <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded inline-block mb-2 border border-indigo-100">{str.name}</span>
+                                       <p className="text-amber-900 font-medium text-sm leading-relaxed">{str.hint}</p>
+                                    </div>
+                                 ))}
+                                 {/* Fallback in case old AI cache returns vietnameseHint instead of structures */}
+                                 {guidedPlan.steps[guidedStepIndex].vietnameseHint && !guidedPlan.steps[guidedStepIndex].structures && (
+                                    <div className="bg-white p-3.5 rounded-xl border border-amber-200/60 shadow-sm col-span-full">
+                                       <p className="text-amber-900 font-medium text-sm leading-relaxed">{guidedPlan.steps[guidedStepIndex].vietnameseHint}</p>
+                                    </div>
+                                 )}
+                               </div>
+                            </div>
+                         </div>
+
+                         <div className="p-5 md:p-6 flex-1 flex flex-col gap-4 bg-slate-50/50">
+                            {/* Từ vựng bắt buộc (nếu có) */}
+                            {guidedPlan.steps[guidedStepIndex].requiredVocab?.length > 0 && (
+                               <div className="mb-2">
+                                  <span className="text-[10px] font-black uppercase text-rose-500 tracking-widest block mb-2">🎯 Ép dùng từ (Bắt buộc):</span>
+                                  <div className="flex flex-wrap gap-2">
+                                     {guidedPlan.steps[guidedStepIndex].requiredVocab.map((v, i) => {
+                                        const currentText = guidedDrafts[guidedPlan.steps[guidedStepIndex].id] || '';
+                                        // Kiểm tra xem người dùng đã gõ từ này vào textarea chưa
+                                        const isUsed = currentText.toLowerCase().includes(v.phrase.toLowerCase());
+                                        return (
+                                           <div key={i} className={`px-3 py-1.5 rounded-lg border flex items-center gap-2 text-sm transition-all duration-300 ${isUsed ? 'bg-emerald-100 border-emerald-300 text-emerald-800 shadow-sm' : 'bg-white border-slate-200 text-slate-500'}`}>
+                                              {isUsed ? <CheckCircle size={14} className="text-emerald-600"/> : <Circle size={14} className="text-slate-300"/>}
+                                              <span className="font-bold">{v.phrase}</span>
+                                              <span className="text-xs opacity-70">({v.meaning})</span>
+                                           </div>
+                                        )
+                                     })}
+                                  </div>
+                               </div>
+                            )}
+
+                            {/* Khung soạn thảo cho bước hiện tại */}
+                            <textarea 
+                               className="w-full flex-1 min-h-[150px] p-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 transition-all text-slate-700 leading-relaxed resize-none shadow-inner"
+                               placeholder="Gõ đoạn văn tiếng Anh của bạn vào đây..."
+                               value={guidedDrafts[guidedPlan.steps[guidedStepIndex].id]}
+                               onChange={(e) => setGuidedDrafts({...guidedDrafts, [guidedPlan.steps[guidedStepIndex].id]: e.target.value})}
+                               spellCheck={false}
+                            />
+                         </div>
+
+                         <div className="p-4 bg-white border-t border-slate-100 flex justify-between items-center shrink-0">
+                            <button 
+                               onClick={() => setGuidedStepIndex(Math.max(0, guidedStepIndex - 1))} 
+                               disabled={guidedStepIndex === 0}
+                               className="px-5 py-2.5 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-30 flex items-center gap-2"
+                            >
+                               <ArrowLeft size={16}/> Quay lại
                             </button>
+                            
+                            {guidedStepIndex < guidedPlan.steps.length - 1 ? (
+                               <button 
+                                  onClick={() => setGuidedStepIndex(guidedStepIndex + 1)} 
+                                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-lg shadow-indigo-600/20 transition-all flex items-center gap-2"
+                               >
+                                  Tiếp tục <ArrowRight size={16}/>
+                               </button>
+                            ) : (
+                               <button 
+                                  onClick={() => {
+                                     // Lắp ráp 4 đoạn lại với nhau
+                                     const fullEssay = [guidedDrafts.intro, guidedDrafts.body1, guidedDrafts.body2, guidedDrafts.conclusion]
+                                                       .filter(text => text.trim().length > 0)
+                                                       .join('\n\n');
+                                     setEssay(fullEssay);
+                                     setWritingTarget('full');
+                                     setShowGuidedModal(false);
+                                     setIsGuidedDraft(true);
+                                     showToast("Đã ghép bài thành công! Giờ bạn có thể chỉnh sửa thêm hoặc chấm điểm ngay.", "success", 5000);
+                                  }} 
+                                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-2"
+                               >
+                                  <CheckCircle2 size={18}/> Hoàn thành & Dán vào bài
+                               </button>
+                            )}
                          </div>
                       </div>
-                   </div>
-                ) : guidedStep === 'exercise' && guidedExercise ? (
-                   <div className="max-w-3xl mx-auto space-y-6">
-                      <button onClick={() => setGuidedStep('reading')} className="text-indigo-600 font-bold text-sm flex items-center gap-1 hover:underline"><ArrowLeft size={16}/> Quay lại bài đọc</button>
-                      <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200">
-                         <h4 className="text-xl font-black text-slate-800 mb-4 flex items-center gap-2"><Layers className="text-amber-500"/> Summary Completion</h4>
-                         <p className="text-sm text-slate-500 mb-6">Điền các cụm từ thích hợp vào chỗ trống để hoàn thành tóm tắt bài báo.</p>
-
-                         <div className="flex flex-wrap gap-2 mb-8 p-4 bg-amber-50 rounded-xl border border-amber-100">
-                            <span className="text-[10px] font-black uppercase text-amber-700 mt-1 mr-2">Word Bank:</span>
-                            {guidedExercise.wordBank?.map((w, i) => (
-                               <span key={i} className="bg-white px-3 py-1 rounded border shadow-sm text-indigo-700 font-bold text-sm">{w}</span>
-                            ))}
-                         </div>
-
-                         <div className="text-lg text-slate-700 leading-loose font-serif text-justify">
-                            {guidedExercise.summaryText.split('___').map((part, pIdx, arr) => (
-                               <React.Fragment key={pIdx}>
-                                  {part}
-                                  {pIdx < arr.length - 1 && (
-                                    <span className="inline-block relative">
-                                      <input
-                                        type="text"
-                                        className={`w-32 md:w-40 px-2 py-1 mx-1 border-b-2 bg-slate-50 outline-none text-center font-bold text-indigo-700 focus:border-indigo-500 transition-colors ${guidedAnswers.showResults ? (guidedAnswers[pIdx]?.trim().toLowerCase() === guidedExercise.blanks[pIdx]?.answer.toLowerCase() ? 'border-emerald-500 text-emerald-600 bg-emerald-50' : 'border-rose-500 text-rose-600 bg-rose-50') : 'border-slate-300'}`}
-                                        value={guidedAnswers[pIdx] || ''}
-                                        onChange={(e) => setGuidedAnswers(prev => ({...prev, [pIdx]: e.target.value, showResults: false}))}
-                                        disabled={guidedAnswers.showResults}
-                                      />
-                                      {guidedAnswers.showResults && guidedAnswers[pIdx]?.trim().toLowerCase() !== guidedExercise.blanks[pIdx]?.answer.toLowerCase() && (
-                                         <span className="absolute -bottom-5 left-0 w-full text-center text-[10px] font-black text-rose-600 bg-rose-100 rounded">
-                                            {guidedExercise.blanks[pIdx]?.answer}
-                                         </span>
-                                      )}
-                                    </span>
-                                  )}
-                               </React.Fragment>
-                            ))}
-                         </div>
-                      </div>
-                      {!guidedAnswers.showResults ? (
-                         <button onClick={() => setGuidedAnswers(prev => ({...prev, showResults: true}))} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-2xl shadow-lg transition-colors text-lg">Kiểm tra đáp án</button>
-                      ) : (
-                         <button onClick={() => setGuidedAnswers({})} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 rounded-2xl shadow-lg transition-colors text-lg flex items-center justify-center gap-2"><RefreshCw size={20}/> Làm lại</button>
-                      )}
                    </div>
                 ) : null}
              </div>
