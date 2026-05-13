@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+
 import { 
   BookOpen, Edit3, CheckCircle, Loader2, Sparkles, AlertTriangle, Play, Pause, RotateCcw,
   Brain, PenTool, Layers, ArrowRight, ArrowLeft, Wand2, Download, Upload, Plus, Trash2, X, Save, Award, Clock, Settings, RefreshCw,
@@ -9,10 +10,9 @@ import {
 
 // ==========================================
 // 🔴 CÔNG TẮC BẬT/TẮT CHẾ ĐỘ PREVIEW
-// Thay đổi thành "true" CHỈ KHI MUỐN TEST GIAO DIỆN Ở KHUNG BÊN PHẢI.
-// BẮT BUỘC ĐỂ "false" KHI ĐẨY CODE LÊN GITHUB/VERCEL ĐỂ DÙNG MÔI TRƯỜNG THẬT.
+// Đã chuyển thành true để chạy giả lập theo hướng dẫn
 // ==========================================
-const IS_PREVIEW_MODE = false; 
+const IS_PREVIEW_MODE = true; 
 
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from 'firebase/app';
@@ -355,7 +355,7 @@ export default function App() {
     const statsRef = doc(db, 'artifacts', appId, 'users', user.uid, 'user_info', 'stats');
     const unsubscribeStats = onSnapshot(statsRef, (docSnap) => {
        if (docSnap.exists()) {
-          setUserStats(docSnap.data());
+         setUserStats(docSnap.data());
        }
     });
 
@@ -469,18 +469,18 @@ export default function App() {
       const match = textBeforeCursor.match(/(?:^|\s)@@([^\s@]+)$/);
       
       if (match) {
-         e.preventDefault(); 
-         const vietnameseWord = match[1].replace(/_/g, ' '); 
-         const wordStartIndex = cursorPosition - match[0].length + (match[0].startsWith(' ') ? 1 : 0);
+        e.preventDefault(); 
+        const vietnameseWord = match[1].replace(/_/g, ' '); 
+        const wordStartIndex = cursorPosition - match[0].length + (match[0].startsWith(' ') ? 1 : 0);
          
-         if (copilotUses <= 0) {
+        if (copilotUses <= 0) {
             return showToast("Bạn đã hết quyền trợ giúp từ vựng cho bài này. Hãy cố gắng vận dụng vốn từ của bản thân!", "error", 5000);
-         }
-         if (copilotCooldownRef.current > 0) {
+        }
+        if (copilotCooldownRef.current > 0) {
             return showToast(`⏳ Tính năng đang hồi chiêu. Vui lòng đợi ${copilotCooldownRef.current}s nữa.`, "info");
-         }
+        }
 
-         triggerCopilot(vietnameseWord, wordStartIndex, match[0].trim().length);
+        triggerCopilot(vietnameseWord, wordStartIndex, match[0].trim().length);
       }
     }
   };
@@ -866,12 +866,12 @@ export default function App() {
   const handleBatchCheckCorrections = async () => {
     // Lọc ra các câu mà người dùng ĐÃ có nhập text sửa và CHƯA được review
     const pendingChecks = Object.entries(correctionAttempts)
-       .filter(([idx, attempt]) => attempt.text && attempt.text.trim() && !attempt.reviewed)
-       .map(([idx, attempt]) => ({
-           idx: idx,
-           originalError: evaluationResult.detailedCorrections[idx].original,
-           studentRewrite: attempt.text.trim()
-       }));
+      .filter(([idx, attempt]) => attempt.text && attempt.text.trim() && !attempt.reviewed)
+      .map(([idx, attempt]) => ({
+          idx: idx,
+          originalError: evaluationResult.detailedCorrections[idx].original,
+          studentRewrite: attempt.text.trim()
+      }));
 
     if (pendingChecks.length === 0) {
        return showToast("Vui lòng viết lại ít nhất 1 câu lỗi trước khi kiểm tra.", "info");
@@ -1030,7 +1030,7 @@ export default function App() {
   if (!user) {
     return (
       <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-         <div className="bg-white p-10 rounded-[32px] shadow-2xl max-w-md w-full text-center border animate-slideUp">
+        <div className="bg-white p-10 rounded-[32px] shadow-2xl max-w-md w-full text-center border animate-slideUp">
             <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-inner"><PenTool size={40}/></div>
             <h1 className="text-3xl font-black text-slate-800 mb-2">Max Academy Pro</h1>
             <p className="text-sm font-medium text-slate-500 mb-10 leading-relaxed">Hệ thống luyện thi IELTS Writing độc quyền tích hợp AI thông minh.</p>
@@ -1039,7 +1039,7 @@ export default function App() {
                {isLoggingIn ? 'Đang kết nối...' : 'Đăng nhập bằng Google'}
             </button>
             <p className="text-[10px] text-slate-400 mt-6">*Chỉ các tài khoản học viên nội bộ mới được cấp quyền truy cập.</p>
-         </div>
+        </div>
       </div>
     );
   }
@@ -1051,14 +1051,14 @@ export default function App() {
   if (isAuthorized === false) {
     return (
       <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-         <div className="bg-white p-10 rounded-[32px] shadow-2xl max-w-md w-full text-center border animate-slideUp">
+        <div className="bg-white p-10 rounded-[32px] shadow-2xl max-w-md w-full text-center border animate-slideUp">
             <div className="w-20 h-20 bg-rose-100 text-rose-600 rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-inner"><ShieldAlert size={40}/></div>
             <h1 className="text-2xl font-black text-slate-800 mb-3">Truy cập bị từ chối</h1>
             <p className="text-sm font-medium text-slate-500 mb-6 leading-relaxed">
               Email <strong className="text-rose-600">{user.email}</strong> của bạn chưa được cấp quyền sử dụng hệ thống này. Vui lòng liên hệ với Admin để kích hoạt tài khoản.
             </p>
             <button onClick={handleLogout} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-sm py-4 rounded-2xl transition-all">Đăng xuất & Thử tài khoản khác</button>
-         </div>
+        </div>
       </div>
     );
   }
@@ -1258,26 +1258,26 @@ export default function App() {
       {/* Evaluation Results Side Panel */}
       {evaluationResult && (
         <div 
-           className="flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-slideRight z-10 shrink-0 relative"
-           style={{ width: `${evalWidth}px` }}
+          className="flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-slideRight z-10 shrink-0 relative"
+          style={{ width: `${evalWidth}px` }}
         >
-           <div 
-             className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-emerald-400/50 bg-transparent z-20 transition-colors flex items-center justify-center group"
-             onMouseDown={startDrag}
-           >
+          <div 
+            className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-emerald-400/50 bg-transparent z-20 transition-colors flex items-center justify-center group"
+            onMouseDown={startDrag}
+          >
               <div className="w-1 h-8 bg-slate-300 rounded-full group-hover:bg-white shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"></div>
-           </div>
+          </div>
 
-           <div className="bg-emerald-600 p-4 pl-6 text-white text-center flex items-center justify-between shrink-0">
+          <div className="bg-emerald-600 p-4 pl-6 text-white text-center flex items-center justify-between shrink-0">
               <div className="text-left"><span className="text-[10px] font-bold uppercase block opacity-80">Overall Band</span><span className="text-3xl font-black">{evaluationResult.overallBand}</span></div>
               <button onClick={() => setEvaluationResult(null)} className="p-1 hover:bg-emerald-700 rounded"><X size={20}/></button>
-           </div>
-           <div className="grid grid-cols-4 gap-px bg-slate-100 border-b">
+          </div>
+          <div className="grid grid-cols-4 gap-px bg-slate-100 border-b">
               {[ { k: 'TR', v: evaluationResult.trScore }, { k: 'CC', v: evaluationResult.ccScore }, { k: 'LR', v: evaluationResult.lrScore }, { k: 'GRA', v: evaluationResult.graScore } ].map(s => (
                 <div key={s.k} className="bg-white p-2 text-center"><div className="text-[10px] font-bold text-slate-400">{s.k}</div><div className="text-lg font-black text-slate-800">{s.v}</div></div>
               ))}
-           </div>
-           <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-6">
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-6">
               
               <div>
                  <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-1.5 text-sm"><ListChecks className="text-blue-500" size={16}/> Đánh giá theo tiêu chí</h4>
@@ -1312,7 +1312,7 @@ export default function App() {
                        const attemptState = correctionAttempts[i] || {};
                        const showAnswer = attemptState.showAnswer || attemptState.reviewed;
                        const sentenceDetails = getFullSentenceDetails(essay, c.original, c.corrected);
-                       
+                        
                        return (
                          <div key={i} ref={(el) => (commentRefs.current[i] = el)} className={`p-4 rounded-xl border transition-all ${activeCommentIndex === i ? 'bg-indigo-50/50 border-indigo-300 shadow-md' : 'bg-slate-50 border-slate-100'}`} onMouseEnter={() => setActiveCommentIndex(i)} onMouseLeave={() => setActiveCommentIndex(null)}>
                             <div className="flex justify-between items-center mb-3">
@@ -1402,7 +1402,7 @@ export default function App() {
                  </div>
               </div>
               
-           </div>
+          </div>
         </div>
       )}
     </div>
@@ -1480,7 +1480,7 @@ export default function App() {
              <button onClick={() => { setNewVocab({ topic: '', subtopic: '', phrase: '', basePhrase: '', translation: '', example1: '', example2: '' }); setVocabStep('init'); setShowVocabModal(true); }} className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-black flex items-center gap-2 shadow-lg shadow-indigo-600/20"><Plus size={18}/> Thêm từ mới</button>
           </div>
        </div>
-       
+        
        <div className="flex flex-col gap-5 overflow-y-auto custom-scrollbar flex-1 pb-10 content-start pr-2">
           {filteredVocabs.length === 0 ? <div className="py-20 text-center text-slate-300 font-bold border-2 border-dashed rounded-3xl">Chưa có từ vựng nào trong chủ đề này.</div> :
           filteredVocabs.map(v => (
@@ -1489,7 +1489,7 @@ export default function App() {
                   <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setNewVocab({ id: v.id, topic: v.topicId || '', subtopic: v.subtopicId || '', phrase: v.phrase, basePhrase: v.phrase, translation: v.translation, example1: v.examples?.[0] || '', example2: v.examples?.[1] || '' }); setVocabStep('reviewed'); setShowVocabModal(true); }} className="text-slate-400 hover:text-indigo-600 p-2 bg-slate-100 hover:bg-indigo-50 rounded-xl transition-colors" title="Sửa từ vựng này"><Edit3 size={16}/></button>
                   <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); triggerDelete('vocabulary', v.id); }} className="text-slate-400 hover:text-rose-600 p-2 bg-slate-100 hover:bg-rose-50 rounded-xl transition-colors" title="Xóa từ vựng"><Trash2 size={16}/></button>
                </div>
-               
+                
                <div className="w-full md:w-[35%] flex flex-col justify-center">
                    <div className="flex flex-wrap gap-2 mb-3 pr-20 md:pr-0">
                      {v.topicId === 'general' ? (
@@ -1504,7 +1504,7 @@ export default function App() {
                    <h3 className="text-xl md:text-[22px] font-black text-indigo-900 mb-2 leading-tight break-words">{v.phrase}</h3>
                    <p className="text-sm font-bold text-slate-500 break-words">{v.translation}</p>
                </div>
-               
+                
                <div className="w-full md:w-[65%] flex flex-col justify-center border-t md:border-t-0 md:border-l border-slate-100 pt-5 md:pt-0 md:pl-8 space-y-3">
                    {v.examples?.[0] ? (
                        <div className="text-[14px] md:text-[15px] leading-relaxed text-slate-700 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100/80 shadow-sm font-serif text-justify">
@@ -1532,7 +1532,7 @@ export default function App() {
            <div className="w-20 h-20 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mb-6 shadow-inner"><Gamepad2 size={40} /></div>
            <h2 className="text-2xl md:text-3xl font-black text-slate-800 mb-3">Ôn Tập Từ Vựng</h2>
            <p className="text-sm text-slate-500 mb-8">AI sẽ bốc ngẫu nhiên tối đa 10 từ vựng trong kho và tạo bài tập điền từ vào chỗ trống để giúp bạn kiểm tra trí nhớ.</p>
-           
+            
            <div className="flex flex-col sm:flex-row gap-3 mb-8 w-full">
               <select className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-amber-500" value={filterQuizTopic} onChange={(e) => {setFilterQuizTopic(e.target.value); setFilterQuizSubtopic('');}}>
                  <option value="">Tất cả Chủ đề (Random)</option>
@@ -1556,7 +1556,7 @@ export default function App() {
                  <h2 className="text-lg font-black text-slate-800 flex items-center gap-2"><Gamepad2 className="text-amber-500"/> Fill in the Blanks</h2>
                  <button onClick={() => setQuizStep('setup')} className="bg-white border border-slate-200 text-slate-600 px-3 py-1.5 rounded-lg font-bold text-xs hover:bg-slate-100 flex items-center gap-1"><X size={14}/> Thoát</button>
               </div>
-              
+               
               <div className="flex flex-wrap gap-2 items-center">
                  <span className="text-[10px] font-black text-amber-700 uppercase tracking-wider flex items-center gap-1 bg-amber-100 px-2 py-1 rounded"><Layers size={12}/> Word Bank:</span>
                  {wordBank.map((w, i) => (
@@ -1587,7 +1587,7 @@ export default function App() {
                              </React.Fragment>
                           ))}
                           </p>
-                          
+                           
                           <div className="mt-2 min-h-[24px]">
                              {!revealedHints[i] ? (
                                 <button onClick={() => setRevealedHints(prev => ({...prev, [i]: true}))} className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-100 hover:bg-amber-100 flex items-center gap-1 transition-colors">
@@ -1599,7 +1599,7 @@ export default function App() {
                                 </p>
                              )}
                           </div>
-                          
+                           
                           {quizResults && (
                              <div className="mt-2">
                                 {quizResults[i] ? (
@@ -1614,7 +1614,7 @@ export default function App() {
                 </div>
               ))}
            </div>
-           
+            
            <div className="p-4 border-t border-slate-200 bg-white flex justify-end shrink-0">
               {!quizResults ? (
                  <button onClick={handleCheckQuiz} className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-xl font-black shadow-lg shadow-amber-500/20 text-sm transition-colors w-full sm:w-auto">Kiểm tra đáp án</button>
@@ -1691,7 +1691,7 @@ export default function App() {
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col items-center justify-center relative overflow-hidden">
                  <div className="absolute top-0 left-0 w-full h-1 bg-indigo-400"></div>
                  <h3 className="font-black text-slate-800 mb-6 w-full flex items-center gap-2"><Target size={18} className="text-rose-500"/> Biểu đồ Năng lực (Spider Web)</h3>
-                 
+                  
                  <div className="relative w-48 h-48 sm:w-56 sm:h-56 mb-4">
                     <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-md">
                        {/* Grid lưới mạng nhện (điểm 3, 5, 7, 9) */}
@@ -1701,17 +1701,17 @@ export default function App() {
                        {/* Trục tọa độ */}
                        <line x1="50" y1="10" x2="50" y2="90" stroke="#cbd5e1" strokeWidth="0.5" />
                        <line x1="10" y1="50" x2="90" y2="50" stroke="#cbd5e1" strokeWidth="0.5" />
-                       
+                        
                        {/* Vùng Dữ liệu của học viên */}
                        <polygon points={polygonPoints} fill="rgba(99, 102, 241, 0.2)" stroke="#4f46e5" strokeWidth="1.5" className="transition-all duration-700 ease-in-out" />
-                       
+                        
                        {/* Các điểm mút */}
                        {radarData.map((d, i) => {
                           const [x, y] = getPoint(d.score, i).split(',');
                           return <circle key={i} cx={x} cy={y} r="2" fill="#4f46e5" className="animate-pulse" />;
                        })}
                     </svg>
-                    
+                     
                     {/* Nhãn dán các trục */}
                     <div className="absolute top-0 inset-x-0 flex justify-center -mt-2"><span className="text-[10px] font-black text-blue-600 bg-white px-1 shadow-sm rounded">TR ({avgTR})</span></div>
                     <div className="absolute right-0 inset-y-0 flex items-center -mr-6"><span className="text-[10px] font-black text-amber-600 bg-white px-1 shadow-sm rounded">CC ({avgCC})</span></div>
@@ -1724,7 +1724,7 @@ export default function App() {
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col relative overflow-hidden">
                  <div className="absolute top-0 left-0 w-full h-1 bg-amber-400"></div>
                  <h3 className="font-black text-slate-800 mb-6 w-full flex items-center gap-2"><Sparkles size={18} className="text-amber-500"/> Chẩn đoán & Lời khuyên</h3>
-                 
+                  
                  <div className="space-y-4">
                     <div className="flex items-start gap-3 bg-emerald-50/50 p-3 rounded-xl border border-emerald-100">
                        <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 font-black">↑</div>
@@ -1733,7 +1733,7 @@ export default function App() {
                           <p className="text-sm font-bold text-slate-800"><span className="text-emerald-600">{adviceMap[strongest].title}</span> (Band {maxScore})</p>
                        </div>
                     </div>
-                    
+                     
                     <div className="flex items-start gap-3 bg-rose-50/50 p-3 rounded-xl border border-rose-100">
                        <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 font-black">↓</div>
                        <div>
@@ -1925,7 +1925,7 @@ export default function App() {
                <button onClick={() => setShowStructureModal(false)} className="hover:bg-slate-200 p-2 rounded-xl text-slate-500 transition-colors"><X size={20}/></button>
             </div>
             <div className="p-4 md:p-8 overflow-y-auto flex-1 min-h-0 custom-scrollbar space-y-6 md:space-y-8 text-sm text-slate-700 leading-relaxed">
-               
+                
                <div className="bg-slate-50 p-4 md:p-6 rounded-xl md:rounded-2xl border border-slate-200 shadow-sm">
                   <h4 className="font-black text-slate-800 mb-2 md:mb-3 text-sm md:text-base flex items-center gap-2">
                       <span className="w-5 h-5 md:w-6 md:h-6 bg-slate-200 rounded-full flex items-center justify-center text-[10px] md:text-xs">1</span> Mở bài (Introduction)
@@ -2030,7 +2030,7 @@ export default function App() {
                   <p className="mb-2 md:mb-3 text-xs md:text-sm"><strong>Công thức:</strong> Tóm tắt lại cả 2 mặt của vấn đề + Khẳng định lại Thesis Statement (1-2 câu).</p>
                   <div className="bg-white p-3 md:p-4 rounded-lg md:rounded-xl border-l-4 border-l-emerald-500 text-emerald-800 font-medium shadow-sm text-xs md:text-sm">In conclusion, while [Side A/40%] has some merits, I am of the opinion that [Side B/60%] is far more crucial due to [Reason 1] and [Reason 2].</div>
                </div>
-               
+                
             </div>
           </div>
         </div>
@@ -2054,7 +2054,7 @@ export default function App() {
                 ) : 
                 mindMapData && mindMapData.view40 && mindMapData.view60 ? (
                   <div className="flex flex-col lg:flex-row items-stretch gap-6 lg:gap-4 relative w-full pt-4 pb-6">
-                     
+                      
                      {/* Cột Trái: VIEW 40 (Nhượng bộ) */}
                      <div className="flex-1 flex flex-col gap-4">
                         <div className="bg-white border-l-4 border-rose-500 py-3 px-4 rounded-xl shadow-sm text-center">
@@ -2064,7 +2064,7 @@ export default function App() {
                         <div className="space-y-4 lg:pr-6 relative">
                            {/* Đường line mờ kết nối ở desktop */}
                            <div className="hidden lg:block absolute right-0 top-1/2 w-6 border-b-2 border-dashed border-rose-200"></div>
-                           
+                            
                            {mindMapData.view40.ideas.map((id, i) => (
                               <div key={i} className="bg-white border-l-2 border-l-rose-400 p-4 rounded-xl shadow-sm relative ml-4 lg:ml-0 hover:shadow-md transition-shadow">
                                  <span className="absolute -left-4 -top-3 w-8 h-8 bg-rose-500 text-white font-black rounded-full flex items-center justify-center text-xs shadow-sm border-2 border-white">{id.letter}</span>
@@ -2127,9 +2127,22 @@ export default function App() {
       {showGuidedModal && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
           <div className="bg-slate-50 rounded-3xl shadow-2xl w-[95%] max-w-5xl max-h-[90vh] flex flex-col animate-slideUp overflow-hidden">
-             <div className="p-4 md:p-5 border-b flex justify-between items-center bg-white shrink-0">
-                <h3 className="font-black text-indigo-600 text-base md:text-lg flex items-center gap-2"><Wand2 size={22}/> Guided Writing Wizard (Step-by-step)</h3>
-                <button onClick={() => setShowGuidedModal(false)} className="hover:bg-slate-100 p-2 rounded-xl text-slate-500 transition-colors"><X size={20}/></button>
+             <div className="p-4 md:p-5 border-b bg-white shrink-0 flex flex-col gap-4">
+                <div className="flex justify-between items-center">
+                    <h3 className="font-black text-indigo-600 text-base md:text-lg flex items-center gap-2"><Wand2 size={22}/> Guided Writing Wizard</h3>
+                    <button onClick={() => setShowGuidedModal(false)} className="hover:bg-slate-100 p-2 rounded-xl text-slate-500 transition-colors"><X size={20}/></button>
+                </div>
+                {prompt && (
+                    <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl flex gap-3 items-start shadow-inner">
+                        <div className="bg-white p-1.5 rounded-lg shadow-sm border border-slate-100 shrink-0 mt-0.5">
+                            <Target size={16} className="text-indigo-500"/>
+                        </div>
+                        <div>
+                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1">Đề bài của bạn:</span>
+                            <p className="text-sm font-bold text-slate-800 leading-relaxed">{prompt}</p>
+                        </div>
+                    </div>
+                )}
              </div>
 
              <div className="p-4 md:p-8 overflow-y-auto flex-1 min-h-0 custom-scrollbar relative">
@@ -2141,7 +2154,7 @@ export default function App() {
                    </div>
                 ) : guidedPlan && guidedPlan.steps ? (
                    <div className="max-w-4xl mx-auto flex flex-col h-full">
-                      
+                       
                       {/* Progress Bar */}
                       <div className="flex items-center justify-between mb-8 relative">
                          <div className="absolute left-0 top-1/2 w-full h-1 bg-slate-200 -z-10 -translate-y-1/2"></div>
@@ -2160,7 +2173,7 @@ export default function App() {
                          <div className="p-5 md:p-6 border-b border-slate-100 bg-indigo-50/30">
                             <h4 className="text-lg md:text-xl font-black text-slate-800 mb-2">{guidedPlan.steps[guidedStepIndex].title}</h4>
                             <p className="text-slate-600 text-sm">{guidedPlan.steps[guidedStepIndex].instruction}</p>
-                            
+                             
                             {/* Khu vực Gợi ý cấu trúc (CẬP NHẬT MỚI DẠNG GRID) */}
                             <div className="mt-4 p-4 md:p-5 bg-amber-50 border border-amber-100 rounded-2xl flex flex-col gap-3 shadow-inner">
                                <div className="flex items-center gap-2 mb-1">
@@ -2224,7 +2237,7 @@ export default function App() {
                             >
                                <ArrowLeft size={16}/> Quay lại
                             </button>
-                            
+                             
                             {guidedStepIndex < guidedPlan.steps.length - 1 ? (
                                <button 
                                   onClick={() => setGuidedStepIndex(guidedStepIndex + 1)} 
@@ -2285,7 +2298,7 @@ export default function App() {
                  <span>{newVocab.id ? 'Sửa Từ Vựng' : (vocabStep === 'reviewed' ? 'Review & Lưu Từ Vựng' : 'Phân loại Từ Vựng')}</span>
                  <button onClick={() => setShowVocabModal(false)} className="hover:bg-slate-200 p-1.5 rounded-xl text-slate-500 transition-colors"><X size={18}/></button>
               </div>
-              
+               
               <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1 min-h-0">
                  {vocabStep === 'init' && (
                    <>
@@ -2301,8 +2314,8 @@ export default function App() {
                          {newVocab.topic && SUBTOPICS[newVocab.topic]?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                       </select>
                     </div>
-                  </>
-                )}
+                   </>
+                 )}
 
                 {vocabStep === 'analyzing' && (
                    <div className="py-12 flex flex-col items-center justify-center text-indigo-600">
@@ -2345,7 +2358,7 @@ export default function App() {
                   </div>
                 )}
              </div>
-             
+              
              <div className="p-5 bg-slate-50 flex justify-end gap-3 border-t shrink-0">
                 {vocabStep === 'init' && (
                   <button onClick={handleAnalyzeVocab} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-black flex items-center gap-2 w-full justify-center shadow-lg transition-colors"><Sparkles size={18}/> Phân tích & Lấy câu mẫu</button>
