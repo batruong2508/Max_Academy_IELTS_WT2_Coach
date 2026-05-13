@@ -12,7 +12,7 @@ import {
 // 🔴 CÔNG TẮC BẬT/TẮT CHẾ ĐỘ PREVIEW
 // Đã chuyển thành true để chạy giả lập theo hướng dẫn
 // ==========================================
-const IS_PREVIEW_MODE = true; 
+const IS_PREVIEW_MODE = false; 
 
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from 'firebase/app';
