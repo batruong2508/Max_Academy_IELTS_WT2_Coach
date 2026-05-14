@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-
 import { 
   BookOpen, Edit3, CheckCircle, Loader2, Sparkles, AlertTriangle, Play, Pause, RotateCcw,
   Brain, PenTool, Layers, ArrowRight, ArrowLeft, Wand2, Download, Upload, Plus, Trash2, X, Save, Award, Clock, Settings, RefreshCw,
@@ -10,9 +9,10 @@ import {
 
 // ==========================================
 // 🔴 CÔNG TẮC BẬT/TẮT CHẾ ĐỘ PREVIEW
-// Đã chuyển thành true để chạy giả lập theo hướng dẫn
+// Thay đổi thành "true" CHỈ KHI MUỐN TEST GIAO DIỆN Ở KHUNG BÊN PHẢI.
+// BẮT BUỘC ĐỂ "false" KHI ĐẨY CODE LÊN GITHUB/VERCEL ĐỂ DÙNG MÔI TRƯỜNG THẬT.
 // ==========================================
-const IS_PREVIEW_MODE = false; 
+const IS_PREVIEW_MODE = true; 
 
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from 'firebase/app';
@@ -55,11 +55,11 @@ const TOPICS = [
 
 const SUBTOPICS = {
   education: [
-    { id: 'edu_purpose', name: 'Mục đích giáo dục & Hướng nghiệp' }, // Gom: Main function of university/school, University vs Work
-    { id: 'edu_method', name: 'Môi trường & Phương pháp học' }, // Gom: Single sex vs coed, Online learning/study, Living at home vs boarding, Student exchange
-    { id: 'edu_curriculum', name: 'Chương trình học & Đánh giá' }, // Gom: University subjects, Academic tests, Homework, Children learning another language
-    { id: 'edu_behavior', name: 'Hành vi & Kỷ luật' }, // Gom: Study hard, Punishment, Rewards, Student behavior, Bullying, Competition vs co-operation
-    { id: 'edu_policy', name: 'Chính sách trường học & Tài chính' } // Gom: Free education, Private schools, Uniforms, Gap year
+    { id: 'edu_purpose', name: 'Mục đích giáo dục & Hướng nghiệp' },
+    { id: 'edu_method', name: 'Môi trường & Phương pháp học' },
+    { id: 'edu_curriculum', name: 'Chương trình học & Đánh giá' },
+    { id: 'edu_behavior', name: 'Hành vi & Kỷ luật' },
+    { id: 'edu_policy', name: 'Chính sách trường học & Tài chính' }
   ],
   environment: [
     { id: 'env_climate', name: 'Biến đổi khí hậu & Năng lượng' },
@@ -229,7 +229,7 @@ export default function App() {
   const [showVocabModal, setShowVocabModal] = useState(false);
   const [showGuidedModal, setShowGuidedModal] = useState(false); 
 
-  // --- CẬP NHẬT: TÍNH NĂNG GUIDED WRITING WIZARD (CẦM TAY CHỈ VIỆC) ---
+  // --- GUIDED WRITING WIZARD STATES ---
   const [guidedPlan, setGuidedPlan] = useState(null);
   const [guidedStepIndex, setGuidedStepIndex] = useState(0);
   const [guidedDrafts, setGuidedDrafts] = useState({ intro: '', body1: '', body2: '', conclusion: '' });
@@ -355,7 +355,7 @@ export default function App() {
     const statsRef = doc(db, 'artifacts', appId, 'users', user.uid, 'user_info', 'stats');
     const unsubscribeStats = onSnapshot(statsRef, (docSnap) => {
        if (docSnap.exists()) {
-         setUserStats(docSnap.data());
+          setUserStats(docSnap.data());
        }
     });
 
@@ -469,18 +469,18 @@ export default function App() {
       const match = textBeforeCursor.match(/(?:^|\s)@@([^\s@]+)$/);
       
       if (match) {
-        e.preventDefault(); 
-        const vietnameseWord = match[1].replace(/_/g, ' '); 
-        const wordStartIndex = cursorPosition - match[0].length + (match[0].startsWith(' ') ? 1 : 0);
+         e.preventDefault(); 
+         const vietnameseWord = match[1].replace(/_/g, ' '); 
+         const wordStartIndex = cursorPosition - match[0].length + (match[0].startsWith(' ') ? 1 : 0);
          
-        if (copilotUses <= 0) {
+         if (copilotUses <= 0) {
             return showToast("Bạn đã hết quyền trợ giúp từ vựng cho bài này. Hãy cố gắng vận dụng vốn từ của bản thân!", "error", 5000);
-        }
-        if (copilotCooldownRef.current > 0) {
+         }
+         if (copilotCooldownRef.current > 0) {
             return showToast(`⏳ Tính năng đang hồi chiêu. Vui lòng đợi ${copilotCooldownRef.current}s nữa.`, "info");
-        }
+         }
 
-        triggerCopilot(vietnameseWord, wordStartIndex, match[0].trim().length);
+         triggerCopilot(vietnameseWord, wordStartIndex, match[0].trim().length);
       }
     }
   };
@@ -532,6 +532,105 @@ export default function App() {
     }, 50);
   };
 
+  // --- THUẬT TOÁN KHỚP MỜ (FUZZY MATCHING) CHO TỪ VỰNG ---
+  const checkVocabUsed = (studentText, targetPhrase) => {
+      if (!studentText || !targetPhrase) return false;
+      const t = studentText.toLowerCase();
+      // Bỏ các từ phụ, ký hiệu và chữ viết tắt
+      let p = targetPhrase.toLowerCase().replace(/\b(sb|sth|someone|something|to|the|a|an|in|on|at|with|for)\b/g, '').replace(/[.…]/g, ' ').trim();
+      
+      if (t.includes(targetPhrase.toLowerCase())) return true; // Khớp 100% (Exact match)
+
+      // Lấy các từ khóa chính (dài hơn 3 ký tự)
+      const mainWords = p.split(/\s+/).filter(w => w.length > 3);
+      if (mainWords.length === 0) return t.includes(targetPhrase.toLowerCase()); 
+
+      // Rút gọn lấy gốc từ (4-5 ký tự đầu) để bỏ qua s, es, ed, ing...
+      const allExist = mainWords.every(word => {
+          // Lấy gốc từ: Từ >= 6 chữ lấy 5 ký tự đầu, Từ < 6 chữ lấy 4 ký tự đầu
+          const root = word.length > 5 ? word.substring(0, 5) : word.substring(0, 4);
+          return t.includes(root);
+      });
+
+      return allExist;
+  };
+
+  // --- STANDARD HELPERS ---
+  const formatTime = (seconds) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
+  
+  const handleLocateError = (originalText) => {
+    if (!editorRef.current) return;
+    const index = essay.indexOf(originalText);
+    if (index !== -1) { editorRef.current.focus(); editorRef.current.setSelectionRange(index, index + originalText.length); editorRef.current.scrollTop = Math.max(0, (essay.substring(0, index).split('\n').length - 3) * 24); } 
+    else showToast("Không tìm thấy câu này trong bài viết.", "info");
+  };
+  const triggerDelete = (col, id) => setDeleteConfirm({ col, id });
+  const confirmDeleteAction = async () => { 
+      if (IS_PREVIEW_MODE) {
+          if (deleteConfirm.col === 'vocabulary') setVocabularies(prev => prev.filter(v => v.id !== deleteConfirm.id));
+          if (deleteConfirm.col === 'sample_essays') setSampleEssays(prev => prev.filter(s => s.id !== deleteConfirm.id));
+      } else {
+          await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, deleteConfirm.col, deleteConfirm.id)); 
+      }
+      setDeleteConfirm(null); 
+  };
+  const handleCheckQuiz = () => {
+    let results = {};
+    quizData.forEach((q, index) => { results[index] = (quizAnswers[index] || '').toLowerCase().trim().replace(/[.,!?]/g, '') === q.answer.toLowerCase().trim().replace(/[.,!?]/g, ''); });
+    setQuizResults(results);
+  };
+  const renderHighlightedExample = (text) => {
+    if (!text) return null;
+    return text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').split(/(<b>.*?<\/b>)/gi).map((part, i) => (part.toLowerCase().startsWith('<b>') && part.toLowerCase().endsWith('</b>')) ? <mark key={i} className="bg-emerald-200/70 text-emerald-900 px-1 py-0.5 mx-0.5 rounded-sm font-bold shadow-sm">{part.slice(3, -4)}</mark> : part);
+  };
+  const handleExportBackup = () => {
+    const backupData = { sampleEssays, vocabularies, evaluationsHistory, exportDate: new Date().toISOString() };
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(backupData, null, 2)], { type: "application/json" })); a.download = `ielts_coach_backup_${new Date().getTime()}.json`; a.click(); showToast('Đã tải file thành công', 'success');
+  };
+  const handleSaveSample = async () => {
+    if (!newSample.prompt || !newSample.prompt.trim()) return showToast("Vui lòng nhập đề bài!", "error");
+    if (sampleEssays.some(s => (s.prompt || '').toLowerCase().trim() === newSample.prompt.toLowerCase().trim() && s.id !== newSample.id)) return showToast("Đề bài này đã tồn tại!", "error");
+    try {
+      const safeData = { topic: newSample.topic || '', subtopic: newSample.subtopic || '', prompt: newSample.prompt || '', content: newSample.content || '' };
+      if (newSample.id) { 
+          if (IS_PREVIEW_MODE) {
+              setSampleEssays(prev => prev.map(s => s.id === newSample.id ? { ...s, ...safeData } : s));
+              showToast("Đã cập nhật (MOCK)!", "success"); 
+          } else {
+              await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'sample_essays', newSample.id), safeData); 
+              showToast("Đã cập nhật!", "success"); 
+          }
+      } else { 
+          if (IS_PREVIEW_MODE) {
+              setSampleEssays(prev => [{ id: Date.now().toString(), ...safeData, createdAt: new Date().toISOString() }, ...prev]);
+              showToast("Đã thêm (MOCK)!", "success"); 
+          } else {
+              await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'sample_essays'), { ...safeData, createdAt: new Date().toISOString() }); 
+              showToast("Đã thêm!", "success");
+          }
+      }
+      setShowSampleModal(false); setNewSample({ topic: '', subtopic: '', prompt: '', content: '' });
+    } catch (error) { showToast("Lỗi: " + error.message, "error"); }
+  };
+  const processImportBackup = async () => {
+    if (!importDataString.trim()) return showToast("Vui lòng nhập JSON.", "error");
+    setIsRestoring(true);
+    try {
+      const data = JSON.parse(importDataString);
+      if (IS_PREVIEW_MODE) {
+          if (data.sampleEssays) setSampleEssays(prev => [...data.sampleEssays, ...prev]);
+          if (data.vocabularies) setVocabularies(prev => [...data.vocabularies, ...prev]);
+          showToast(`Đã khôi phục thành công (MOCK)!`, 'success');
+      } else {
+          for (const s of data.sampleEssays || []) { const { id, ...r } = s; await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'sample_essays'), r); }
+          for (const v of data.vocabularies || []) { const { id, ...r } = v; await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'vocabulary'), r); }
+          for (const e of data.evaluationsHistory || []) { const { id, ...r } = e; await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'evaluations'), r); }
+          showToast(`Đã khôi phục thành công!`, 'success');
+      }
+      setShowImportModal(false); setImportDataString(''); 
+    } catch (e) { showToast("Dữ liệu JSON không hợp lệ.", "error"); } finally { setIsRestoring(false); }
+  };
+
   // --- UI EFFECTS ---
   useEffect(() => { setWordCount(essay.trim().split(/\s+/).filter(word => word.length > 0).length); }, [essay]);
   useEffect(() => { if (promptRef.current) { promptRef.current.style.height = 'auto'; promptRef.current.style.height = `${promptRef.current.scrollHeight}px`; } }, [prompt]);
@@ -575,6 +674,7 @@ export default function App() {
     return () => document.removeEventListener('mouseup', handleMouseUp);
   }, [showApiKeyModal, showCopilotMenu]);
 
+
   // --- ACTIONS WITH ERROR HANDLING ---
   const handleOpenReviewVocab = () => {
     setNewVocab({ topic: selectedTopic || '', subtopic: selectedSubtopic || '', phrase: selectionPopup.text, basePhrase: '', translation: '', example1: '', example2: '' });
@@ -615,21 +715,21 @@ export default function App() {
 
     try {
       if (newVocab.id) {
-          if (IS_PREVIEW_MODE) {
-              setVocabularies(prev => prev.map(v => v.id === newVocab.id ? { ...v, topicId: newVocab.topic || '', subtopicId: newVocab.subtopic || '', phrase: targetPhrase, translation: newVocab.translation || '', examples: [newVocab.example1 || '', newVocab.example2 || ''] } : v));
-              showToast("Đã cập nhật từ vựng (MOCK)!", "success");
-          } else {
-              await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'vocabulary', newVocab.id), { topicId: newVocab.topic || '', subtopicId: newVocab.subtopic || '', phrase: targetPhrase, translation: newVocab.translation || '', examples: [newVocab.example1 || '', newVocab.example2 || ''] });
-              showToast("Đã cập nhật từ vựng!", "success");
-          }
+        if (IS_PREVIEW_MODE) {
+            setVocabularies(prev => prev.map(v => v.id === newVocab.id ? { ...v, topicId: newVocab.topic || '', subtopicId: newVocab.subtopic || '', phrase: targetPhrase, translation: newVocab.translation || '', examples: [newVocab.example1 || '', newVocab.example2 || ''] } : v));
+            showToast("Đã cập nhật từ vựng (MOCK)!", "success");
+        } else {
+            await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'vocabulary', newVocab.id), { topicId: newVocab.topic || '', subtopicId: newVocab.subtopic || '', phrase: targetPhrase, translation: newVocab.translation || '', examples: [newVocab.example1 || '', newVocab.example2 || ''] });
+            showToast("Đã cập nhật từ vựng!", "success");
+        }
       } else {
-          if (IS_PREVIEW_MODE) {
-              setVocabularies(prev => [{ id: Date.now().toString(), topicId: newVocab.topic || '', subtopicId: newVocab.subtopic || '', phrase: targetPhrase, translation: newVocab.translation || '', examples: [newVocab.example1 || '', newVocab.example2 || ''], createdAt: new Date().toISOString() }, ...prev]);
-              showToast("Đã lưu từ vựng vào kho (MOCK)!", "success");
-          } else {
-              await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'vocabulary'), { topicId: newVocab.topic || '', subtopicId: newVocab.subtopic || '', phrase: targetPhrase, translation: newVocab.translation || '', examples: [newVocab.example1 || '', newVocab.example2 || ''], createdAt: new Date().toISOString() });
-              showToast("Đã lưu từ vựng vào kho!", "success");
-          }
+        if (IS_PREVIEW_MODE) {
+            setVocabularies(prev => [{ id: Date.now().toString(), topicId: newVocab.topic || '', subtopicId: newVocab.subtopic || '', phrase: targetPhrase, translation: newVocab.translation || '', examples: [newVocab.example1 || '', newVocab.example2 || ''], createdAt: new Date().toISOString() }, ...prev]);
+            showToast("Đã lưu từ vựng vào kho (MOCK)!", "success");
+        } else {
+            await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'vocabulary'), { topicId: newVocab.topic || '', subtopicId: newVocab.subtopic || '', phrase: targetPhrase, translation: newVocab.translation || '', examples: [newVocab.example1 || '', newVocab.example2 || ''], createdAt: new Date().toISOString() });
+            showToast("Đã lưu từ vựng vào kho!", "success");
+        }
       }
       setShowVocabModal(false);
     } catch (error) { showToast("Lỗi lưu trữ: " + error.message, "error"); }
@@ -659,9 +759,32 @@ export default function App() {
     if (!checkAndRecordApiCall()) { setShowIdeasModal(false); return; } 
     
     setIsGeneratingIdeas(true);
+
+    // --- RAG: TÌM BÀI MẪU THAM KHẢO ---
+    let referenceContext = "";
+    let matchedSamples = sampleEssays.filter(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
+    
+    // Nếu thiếu, quét rộng ra bài cùng Subtopic
+    if (matchedSamples.length < 3 && selectedSubtopic) {
+        const subtopicSamples = sampleEssays.filter(s => s.subtopic === selectedSubtopic && !matchedSamples.includes(s));
+        matchedSamples = [...matchedSamples, ...subtopicSamples];
+    }
+    
+    // Lấy tối đa 3 bài
+    const topSamples = matchedSamples.slice(0, 3);
+    
+    if (topSamples.length > 0) {
+        referenceContext = `\n\nI have provided some high-quality reference essays below. PLEASE EXTRACT AND SYNTHESIZE the main arguments and ideas from THESE REFERENCE ESSAYS to build your EGOSFI mind map, rather than generating generic ideas.\n`;
+        topSamples.forEach((s, idx) => {
+            referenceContext += `--- Reference Essay ${idx + 1} ---\nPrompt: ${s.prompt}\nEssay:\n${s.content}\n\n`;
+        });
+    }
+
     const systemInstruction = `You are an IELTS Writing Task 2 expert. Generate an EGOSFI mind map for this prompt: "${prompt}".
     Structure ideas into View 40 (opposing) and View 60 (supporting). Use E, G, O, S, F, I categories.
+    ${referenceContext}
     Return strictly JSON: { "centralIdea": "...", "view40": {"title": "...", "ideas": [{"letter": "S", "category": "...", "keyword": "...", "explanation": "..."}]}, "view60": {...} }`;
+    
     try {
       const result = await fetchWithRetry({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -684,7 +807,29 @@ export default function App() {
     if (!checkAndRecordApiCall()) { setShowVocabSidebar(false); return; } 
     
     setIsGeneratingPromptVocabs(true);
-    const systemInstruction = `Suggest exactly 10 academic phrases for this prompt: "${prompt}". Return JSON array of objects with {phrase, meaning, source}.`;
+
+    // --- RAG: TÌM BÀI MẪU THAM KHẢO ---
+    let referenceContext = "";
+    let matchedSamples = sampleEssays.filter(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
+    if (matchedSamples.length < 5 && selectedSubtopic) {
+        matchedSamples = [...matchedSamples, ...sampleEssays.filter(s => s.subtopic === selectedSubtopic && !matchedSamples.includes(s))];
+    }
+    if (matchedSamples.length < 5 && selectedTopic) {
+        matchedSamples = [...matchedSamples, ...sampleEssays.filter(s => s.topic === selectedTopic && !matchedSamples.includes(s))];
+    }
+    const topSamples = matchedSamples.slice(0, 5);
+    
+    if (topSamples.length > 0) {
+        referenceContext = `\n\nI have provided some high-quality reference essays below. PLEASE EXTRACT EXACTLY 10 academic phrases DIRECTLY from these essays instead of generating new ones.\n`;
+        topSamples.forEach((s, idx) => {
+            referenceContext += `--- Reference Essay ${idx + 1} ---\nPrompt: ${s.prompt}\nEssay:\n${s.content}\n\n`;
+        });
+    }
+
+    const systemInstruction = `Suggest exactly 10 academic phrases for this prompt: "${prompt}". 
+    ${referenceContext}
+    Return JSON array of objects with {phrase, meaning, source}.`;
+    
     try {
       const result = await fetchWithRetry({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -702,13 +847,30 @@ export default function App() {
     setIsGeneratingGuide(true);
     setGuidedPlan(null); setGuidedDrafts({ intro: '', body1: '', body2: '', conclusion: '' }); setGuidedStepIndex(0);
 
+    // --- RAG: TÌM BÀI MẪU THAM KHẢO ---
+    let referenceContext = "";
+    let matchedSamples = sampleEssays.filter(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
+    if (matchedSamples.length < 3 && selectedSubtopic) {
+        matchedSamples = [...matchedSamples, ...sampleEssays.filter(s => s.subtopic === selectedSubtopic && !matchedSamples.includes(s))];
+    }
+    const topSamples = matchedSamples.slice(0, 3);
+    
+    if (topSamples.length > 0) {
+        referenceContext = `\n\nI have provided some high-quality reference essays below. You MUST EXTRACT the vocabulary, collocations, and ideas directly from THESE ESSAYS to guide the student, rather than inventing new ones.\n`;
+        topSamples.forEach((s, idx) => {
+            referenceContext += `--- Reference Essay ${idx + 1} ---\nPrompt: ${s.prompt}\nEssay:\n${s.content}\n\n`;
+        });
+    }
+
     const systemInstruction = `You are an expert IELTS Writing Tutor. The student needs to write an essay for this prompt: "${prompt}".
-    Create a 4-step Guided Writing Plan. For Introduction, Body 1 and Body 2, provide EXACTLY 3 natural, precise, and context-appropriate collocations (Band 7.0 - 7.5) that the student MUST use.
+    Create a 4-step Guided Writing Plan. For Introduction, Body 1, and Body 2, provide EXACTLY 3 natural, precise, and context-appropriate collocations (Band 7.5+) that the student MUST use.
+
+    ${referenceContext}
     
     CRITICAL RULES FOR VOCABULARY AND GRAMMAR:
     1. DO NOT use obscure "big words", overly complex grammar, or forced academic jargon (avoid "đao to búa lớn").
-    2. Prioritize clarity, fluency, grammatical accuracy, and natural phrasing. A solid Band 7.5 is the target.
-    3. For each step, provide 2 DIFFERENT grammatical structures for the student to translate the main idea (e.g., clear & accurate vs natural & fluent).
+    2. Prioritize clarity, fluency, grammatical accuracy, and natural phrasing from the reference essays (if provided).
+    3. For each step, provide 2 DIFFERENT grammatical structures for the student to translate the main idea.
     
     Return STRICTLY JSON matching this structure:
     {
@@ -724,7 +886,7 @@ export default function App() {
         },
         {
           "id": "body1", "title": "2. Thân bài 1 (Đoạn nhượng bộ / Mặt trái)", 
-          "instruction": "Viết đoạn Body 1. Cố gắng sử dụng các cụm từ dưới đây vào đoạn văn của mình.", 
+          "instruction": "Viết đoạn Body 1.", 
           "structures": [
             { "name": "Cách 1: Trực tiếp, dễ hiểu", "hint": "Dịch: Một mặt, có vài lý do tại sao [Quan điểm A] hợp lý. Đầu tiên là..." },
             { "name": "Cách 2: Dùng chủ ngữ giả / Trôi chảy hơn", "hint": "Dịch: Có thể hiểu được tại sao một số người ủng hộ [Quan điểm A]. Lập luận chính nằm ở chỗ..." }
@@ -733,7 +895,7 @@ export default function App() {
         },
         {
           "id": "body2", "title": "3. Thân bài 2 (Đoạn khẳng định / Mặt lợi)", 
-          "instruction": "Viết đoạn Body 2 bảo vệ quan điểm chính. Cố gắng sử dụng các cụm từ dưới đây.", 
+          "instruction": "Viết đoạn Body 2 bảo vệ quan điểm chính.", 
           "structures": [
             { "name": "Cách 1: Chuyển ý mạch lạc", "hint": "Dịch: Mặt khác, tôi cho rằng những lợi ích thì quan trọng hơn nhiều. Cụ thể là..." },
             { "name": "Cách 2: Nhấn mạnh, tự nhiên", "hint": "Dịch: Bất chấp những lập luận trên, tôi vẫn tin tưởng mãnh liệt rằng..." }
@@ -792,14 +954,41 @@ export default function App() {
     
     let targetInstruction = writingTarget === 'full' ? `Grade the FULL ESSAY.` : writingTarget === 'intro_conc' ? `The student is ONLY writing the INTRODUCTION and CONCLUSION. Evaluate based on Paraphrasing and Thesis.` : `The student is ONLY writing BODY PARAGRAPH(S). Evaluate based on flow, coherence and topic sentences.`;
     
+    // --- RAG: TÌM BÀI MẪU THAM KHẢO CHO AI ---
+    let referenceContext = "";
+    
+    // 1. Ưu tiên tìm bài có trùng khớp Đề bài (Prompt)
+    let matchedSamples = sampleEssays.filter(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
+    
+    // 2. Nếu chưa đủ 5 bài, vét thêm bài cùng Subtopic
+    if (matchedSamples.length < 5 && selectedSubtopic) {
+        const subtopicSamples = sampleEssays.filter(s => s.subtopic === selectedSubtopic && !matchedSamples.includes(s));
+        matchedSamples = [...matchedSamples, ...subtopicSamples];
+    }
+
+    // 3. Nếu vẫn chưa đủ 5 bài, vét nốt bài cùng Topic lớn
+    if (matchedSamples.length < 5 && selectedTopic) {
+        const topicSamples = sampleEssays.filter(s => s.topic === selectedTopic && !matchedSamples.includes(s));
+        matchedSamples = [...matchedSamples, ...topicSamples];
+    }
+
+    // Cắt lấy đúng 5 bài chất lượng nhất
+    const topSamples = matchedSamples.slice(0, 5);
+    
+    if (topSamples.length > 0) {
+        referenceContext = `\n\nTo calibrate your grading standard, READ THESE REFERENCE ESSAYS written by a top-tier IELTS expert for similar topics:\n`;
+        topSamples.forEach((s, idx) => {
+            referenceContext += `--- Reference Essay ${idx + 1} ---\nPrompt: ${s.prompt}\nEssay:\n${s.content}\n\n`;
+        });
+        referenceContext += `CRITICAL RULE FOR TASK RESPONSE (TR): DO NOT force the student to use the same ideas or opinions as the reference essays. Evaluate the student's Task Response based solely on how logically they develop and support THEIR OWN ideas, even if they completely contradict the reference essays.\nCRITICAL RULE FOR CC & LR & GRA: Use the reference essays to set the benchmark for Band 9.0 natural phrasing, vocabulary, and implicit cohesion. Do NOT penalize native-like phrasing just because it's uncommon.\n`;
+    }
+
     // ÁP DỤNG LUẬT CHẤM ĐIỂM (ROUND DOWN) THEO BAND DESCRIPTORS CHUẨN CỦA IELTS
     let systemInstruction = `You are a strict and expert IELTS Writing Task 2 examiner. 
-    1. SCORING CRITERIA: Grade the essay based STRICTLY on the official IELTS Writing Task 2 Band Descriptors (Public Version) for Task Response (TR), Coherence & Cohesion (CC), Lexical Resource (LR), and Grammatical Range & Accuracy (GRA).
+    1. SCORING CRITERIA: Grade the essay based STRICTLY on the official IELTS Writing Task 2 Band Descriptors (Public Version).
     2. SCORING RULE (CRITICAL): Calculate the average of the 4 criteria. For the final Overall Band, you MUST ROUND DOWN to the nearest 0.5 or whole band. 
-       - Example: TR=6, CC=7, LR=7, GRA=7 (Average 6.75) => Overall Band MUST be 6.5.
-       - Example: TR=6, CC=6, LR=6, GRA=7 (Average 6.25) => Overall Band MUST be 6.0.
-       - Example: TR=6, CC=6, LR=7, GRA=7 (Average 6.5) => Overall Band MUST be 6.5.
     3. TARGET: ${targetInstruction} Provide specific comments for each criterion based on the descriptors, and detailedCorrections: [{original, corrected, explanation}].
+    ${referenceContext}
     4. Return strictly JSON: { "overallBand": 6.5, "trScore": 6.0, "trComment": "...", "ccScore": 7.0, "ccComment": "...", "lrScore": 6.0, "lrComment": "...", "graScore": 6.0, "graComment": "...", "detailedCorrections": [...], "polishedEssay": "Band 8.0 polished version of what student wrote." }`;
 
     try {
@@ -938,86 +1127,11 @@ export default function App() {
     } catch (error) { handleApiError(error); } finally { setIsGeneratingQuiz(false); }
   };
 
-  // --- STANDARD HELPERS ---
-  const formatTime = (seconds) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
-  const handleLocateError = (originalText) => {
-    if (!editorRef.current) return;
-    const index = essay.indexOf(originalText);
-    if (index !== -1) { editorRef.current.focus(); editorRef.current.setSelectionRange(index, index + originalText.length); editorRef.current.scrollTop = Math.max(0, (essay.substring(0, index).split('\n').length - 3) * 24); } 
-    else showToast("Không tìm thấy câu này trong bài viết.", "info");
-  };
-  const triggerDelete = (col, id) => setDeleteConfirm({ col, id });
-  const confirmDeleteAction = async () => { 
-      if (IS_PREVIEW_MODE) {
-          if (deleteConfirm.col === 'vocabulary') setVocabularies(prev => prev.filter(v => v.id !== deleteConfirm.id));
-          if (deleteConfirm.col === 'sample_essays') setSampleEssays(prev => prev.filter(s => s.id !== deleteConfirm.id));
-      } else {
-          await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, deleteConfirm.col, deleteConfirm.id)); 
-      }
-      setDeleteConfirm(null); 
-  };
-  const handleCheckQuiz = () => {
-    let results = {};
-    quizData.forEach((q, index) => { results[index] = (quizAnswers[index] || '').toLowerCase().trim().replace(/[.,!?]/g, '') === q.answer.toLowerCase().trim().replace(/[.,!?]/g, ''); });
-    setQuizResults(results);
-  };
-  const renderHighlightedExample = (text) => {
-    if (!text) return null;
-    return text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').split(/(<b>.*?<\/b>)/gi).map((part, i) => (part.toLowerCase().startsWith('<b>') && part.toLowerCase().endsWith('</b>')) ? <mark key={i} className="bg-emerald-200/70 text-emerald-900 px-1 py-0.5 mx-0.5 rounded-sm font-bold shadow-sm">{part.slice(3, -4)}</mark> : part);
-  };
-  const handleExportBackup = () => {
-    const backupData = { sampleEssays, vocabularies, evaluationsHistory, exportDate: new Date().toISOString() };
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(backupData, null, 2)], { type: "application/json" })); a.download = `ielts_coach_backup_${new Date().getTime()}.json`; a.click(); showToast('Đã tải file thành công', 'success');
-  };
-  const handleSaveSample = async () => {
-    if (!newSample.prompt || !newSample.prompt.trim()) return showToast("Vui lòng nhập đề bài!", "error");
-    if (sampleEssays.some(s => (s.prompt || '').toLowerCase().trim() === newSample.prompt.toLowerCase().trim() && s.id !== newSample.id)) return showToast("Đề bài này đã tồn tại!", "error");
-    try {
-      const safeData = { topic: newSample.topic || '', subtopic: newSample.subtopic || '', prompt: newSample.prompt || '', content: newSample.content || '' };
-      if (newSample.id) { 
-          if (IS_PREVIEW_MODE) {
-              setSampleEssays(prev => prev.map(s => s.id === newSample.id ? { ...s, ...safeData } : s));
-              showToast("Đã cập nhật (MOCK)!", "success"); 
-          } else {
-              await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'sample_essays', newSample.id), safeData); 
-              showToast("Đã cập nhật!", "success"); 
-          }
-      } else { 
-          if (IS_PREVIEW_MODE) {
-              setSampleEssays(prev => [{ id: Date.now().toString(), ...safeData, createdAt: new Date().toISOString() }, ...prev]);
-              showToast("Đã thêm (MOCK)!", "success"); 
-          } else {
-              await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'sample_essays'), { ...safeData, createdAt: new Date().toISOString() }); 
-              showToast("Đã thêm!", "success");
-          }
-      }
-      setShowSampleModal(false); setNewSample({ topic: '', subtopic: '', prompt: '', content: '' });
-    } catch (error) { showToast("Lỗi: " + error.message, "error"); }
-  };
-  const processImportBackup = async () => {
-    if (!importDataString.trim()) return showToast("Vui lòng nhập JSON.", "error");
-    setIsRestoring(true);
-    try {
-      const data = JSON.parse(importDataString);
-      if (IS_PREVIEW_MODE) {
-          if (data.sampleEssays) setSampleEssays(prev => [...data.sampleEssays, ...prev]);
-          if (data.vocabularies) setVocabularies(prev => [...data.vocabularies, ...prev]);
-          showToast(`Đã khôi phục thành công (MOCK)!`, 'success');
-      } else {
-          for (const s of data.sampleEssays || []) { const { id, ...r } = s; await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'sample_essays'), r); }
-          for (const v of data.vocabularies || []) { const { id, ...r } = v; await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'vocabulary'), r); }
-          for (const e of data.evaluationsHistory || []) { const { id, ...r } = e; await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'evaluations'), r); }
-          showToast(`Đã khôi phục thành công!`, 'success');
-      }
-      setShowImportModal(false); setImportDataString(''); 
-    } catch (e) { showToast("Dữ liệu JSON không hợp lệ.", "error"); } finally { setIsRestoring(false); }
-  };
-
   // --- RENDER CONDITIONALS ---
   if (!user) {
     return (
       <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-        <div className="bg-white p-10 rounded-[32px] shadow-2xl max-w-md w-full text-center border animate-slideUp">
+         <div className="bg-white p-10 rounded-[32px] shadow-2xl max-w-md w-full text-center border animate-slideUp">
             <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-inner"><PenTool size={40}/></div>
             <h1 className="text-3xl font-black text-slate-800 mb-2">Max Academy Pro</h1>
             <p className="text-sm font-medium text-slate-500 mb-10 leading-relaxed">Hệ thống luyện thi IELTS Writing độc quyền tích hợp AI thông minh.</p>
@@ -1026,7 +1140,7 @@ export default function App() {
                {isLoggingIn ? 'Đang kết nối...' : 'Đăng nhập bằng Google'}
             </button>
             <p className="text-[10px] text-slate-400 mt-6">*Chỉ các tài khoản học viên nội bộ mới được cấp quyền truy cập.</p>
-        </div>
+         </div>
       </div>
     );
   }
@@ -1038,14 +1152,14 @@ export default function App() {
   if (isAuthorized === false) {
     return (
       <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-        <div className="bg-white p-10 rounded-[32px] shadow-2xl max-w-md w-full text-center border animate-slideUp">
+         <div className="bg-white p-10 rounded-[32px] shadow-2xl max-w-md w-full text-center border animate-slideUp">
             <div className="w-20 h-20 bg-rose-100 text-rose-600 rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-inner"><ShieldAlert size={40}/></div>
             <h1 className="text-2xl font-black text-slate-800 mb-3">Truy cập bị từ chối</h1>
             <p className="text-sm font-medium text-slate-500 mb-6 leading-relaxed">
               Email <strong className="text-rose-600">{user.email}</strong> của bạn chưa được cấp quyền sử dụng hệ thống này. Vui lòng liên hệ với Admin để kích hoạt tài khoản.
             </p>
             <button onClick={handleLogout} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-sm py-4 rounded-2xl transition-all">Đăng xuất & Thử tài khoản khác</button>
-        </div>
+         </div>
       </div>
     );
   }
@@ -1079,11 +1193,9 @@ export default function App() {
       </nav>
 
       <div className="flex items-center gap-2 shrink-0">
-        {/* NÚT STREAK MỚI Ở TOP NAV */}
         <div className="bg-orange-50 text-orange-600 px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-black text-sm border border-orange-200 shadow-sm cursor-help" title={`Kỷ lục dài nhất: ${userStats.longestStreak || 0} ngày`}>
            🔥 {userStats.currentStreak || 0}
         </div>
-
         <div className="bg-slate-800 px-3 py-1.5 rounded-lg flex flex-col hidden sm:flex">
            <span className="text-[9px] text-slate-400 uppercase font-black">Học viên</span>
            <span className="text-xs text-white font-medium truncate max-w-[120px]">{user.email}</span>
@@ -1106,7 +1218,7 @@ export default function App() {
     const pendingCount = Object.values(correctionAttempts).filter(a => a.text && a.text.trim() && !a.reviewed).length;
 
     return (
-    <div className="flex-1 flex p-2 lg:p-3 gap-3 min-h-0 relative"> {/* Main flex-row container for side-by-side layout */}
+    <div className="flex-1 flex p-2 lg:p-3 gap-3 min-h-0 relative"> 
       
       {/* Editor Column */}
       <div className="flex-1 flex flex-col min-w-0 gap-3 relative">
@@ -1163,21 +1275,15 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex-1 p-3 relative flex flex-col relative">
-            {isGuidedDraft && (
-                <div className="mb-3 bg-indigo-50 border border-indigo-200 text-indigo-700 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm animate-fadeIn shrink-0">
-                    <Wand2 size={16} className="text-indigo-500 shrink-0"/>
-                    Chế độ Guided: Điểm Ý tưởng (TR/CC) sẽ tự động đạt 9.0. AI sẽ tập trung soi cực gắt Lỗi Ngữ Pháp & Từ Vựng (GRA/LR) của bạn trong quá trình dịch.
-                </div>
-            )}
+          <div className="flex-1 p-3 relative flex flex-col">
             <textarea 
               ref={editorRef} 
               className="w-full h-full resize-none outline-none text-slate-700 leading-relaxed text-[15px] lg:text-base placeholder-slate-400 custom-scrollbar relative z-0" 
               placeholder={getPlaceholderText()} 
               value={essay} 
               onChange={(e) => {
-                  setEssay(e.target.value);
-                  if (e.target.value.trim() === '') { setCopilotUses(3); setIsGuidedDraft(false); } 
+                setEssay(e.target.value);
+                if (e.target.value.trim() === '') { setCopilotUses(3); setIsGuidedDraft(false); } 
               }} 
               onKeyDown={handleKeyDown}
               spellCheck={false} 
@@ -1245,27 +1351,27 @@ export default function App() {
       {/* Evaluation Results Side Panel */}
       {evaluationResult && (
         <div 
-          className="flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-slideRight z-10 shrink-0 relative"
-          style={{ width: `${evalWidth}px` }}
+           className="flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-slideRight z-10 shrink-0 relative"
+           style={{ width: `${evalWidth}px` }}
         >
-          <div 
-            className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-emerald-400/50 bg-transparent z-20 transition-colors flex items-center justify-center group"
-            onMouseDown={startDrag}
-          >
+           <div 
+             className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-emerald-400/50 bg-transparent z-20 transition-colors flex items-center justify-center group"
+             onMouseDown={startDrag}
+           >
               <div className="w-1 h-8 bg-slate-300 rounded-full group-hover:bg-white shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"></div>
-          </div>
+           </div>
 
-          <div className="bg-emerald-600 p-4 pl-6 text-white text-center flex items-center justify-between shrink-0">
+           <div className="bg-emerald-600 p-4 pl-6 text-white text-center flex items-center justify-between shrink-0">
               <div className="text-left"><span className="text-[10px] font-bold uppercase block opacity-80">Overall Band</span><span className="text-3xl font-black">{evaluationResult.overallBand}</span></div>
               <button onClick={() => setEvaluationResult(null)} className="p-1 hover:bg-emerald-700 rounded"><X size={20}/></button>
-          </div>
-          <div className="grid grid-cols-4 gap-px bg-slate-100 border-b">
+           </div>
+           <div className="grid grid-cols-4 gap-px bg-slate-100 border-b">
               {[ { k: 'TR', v: evaluationResult.trScore }, { k: 'CC', v: evaluationResult.ccScore }, { k: 'LR', v: evaluationResult.lrScore }, { k: 'GRA', v: evaluationResult.graScore } ].map(s => (
                 <div key={s.k} className="bg-white p-2 text-center"><div className="text-[10px] font-bold text-slate-400">{s.k}</div><div className="text-lg font-black text-slate-800">{s.v}</div></div>
               ))}
-          </div>
-          <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-6">
-              
+           </div>
+           <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-6">
+               
               <div>
                  <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-1.5 text-sm"><ListChecks className="text-blue-500" size={16}/> Đánh giá theo tiêu chí</h4>
                  <div className="space-y-2.5">
@@ -1360,7 +1466,6 @@ export default function App() {
                        );
                     })}
 
-                    {/* NÚT KIỂM TRA TẤT CẢ (GOM BATCH) NẰM Ở CUỐI DANH SÁCH LỖI */}
                     <div className="sticky bottom-0 bg-white/90 backdrop-blur border-t p-4 rounded-xl shadow-[0_-4px_10px_rgba(0,0,0,0.05)] mt-6">
                         <button 
                             onClick={handleBatchCheckCorrections} 
@@ -1368,7 +1473,7 @@ export default function App() {
                             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-black disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg transition-all"
                         >
                             {isBatchChecking ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />} 
-                            {isBatchChecking ? 'Đang chấm điểm các câu...' : `Chấm điểm tất cả ${pendingCount} câu`}
+                            {isBatchChecking ? 'Đang chấm điểm các câu...' : `Kiểm tra kết quả (${pendingCount} câu)`}
                         </button>
                     </div>
 
@@ -1376,7 +1481,7 @@ export default function App() {
               </div>
               
               <div className="pt-5 border-t">
-                 <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-1.5 text-sm md:text-base"><Award className="text-amber-500" size={18}/> Tham khảo (Band 8.0)</h4>
+                 <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-1.5 text-sm md:text-base"><Award className="text-amber-500" size={18}/> Tham khảo (Band 8.0+)</h4>
                  <div className="p-4 md:p-5 bg-amber-50/80 rounded-2xl text-sm md:text-base leading-loose text-amber-900 font-serif border border-amber-200/60 shadow-inner">
                     {evaluationResult.polishedEssay.split(/\n+/).filter(p => p.trim()).map((paragraph, idx) => (
                        <p key={idx} className="mb-4 last:mb-0 text-justify">{paragraph}</p>
@@ -1384,7 +1489,7 @@ export default function App() {
                  </div>
               </div>
               
-          </div>
+           </div>
         </div>
       )}
     </div>
@@ -1673,7 +1778,7 @@ export default function App() {
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col items-center justify-center relative overflow-hidden">
                  <div className="absolute top-0 left-0 w-full h-1 bg-indigo-400"></div>
                  <h3 className="font-black text-slate-800 mb-6 w-full flex items-center gap-2"><Target size={18} className="text-rose-500"/> Biểu đồ Năng lực (Spider Web)</h3>
-                  
+                 
                  <div className="relative w-48 h-48 sm:w-56 sm:h-56 mb-4">
                     <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-md">
                        {/* Grid lưới mạng nhện (điểm 3, 5, 7, 9) */}
@@ -1693,7 +1798,7 @@ export default function App() {
                           return <circle key={i} cx={x} cy={y} r="2" fill="#4f46e5" className="animate-pulse" />;
                        })}
                     </svg>
-                     
+                    
                     {/* Nhãn dán các trục */}
                     <div className="absolute top-0 inset-x-0 flex justify-center -mt-2"><span className="text-[10px] font-black text-blue-600 bg-white px-1 shadow-sm rounded">TR ({avgTR})</span></div>
                     <div className="absolute right-0 inset-y-0 flex items-center -mr-6"><span className="text-[10px] font-black text-amber-600 bg-white px-1 shadow-sm rounded">CC ({avgCC})</span></div>
@@ -1706,7 +1811,7 @@ export default function App() {
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col relative overflow-hidden">
                  <div className="absolute top-0 left-0 w-full h-1 bg-amber-400"></div>
                  <h3 className="font-black text-slate-800 mb-6 w-full flex items-center gap-2"><Sparkles size={18} className="text-amber-500"/> Chẩn đoán & Lời khuyên</h3>
-                  
+                 
                  <div className="space-y-4">
                     <div className="flex items-start gap-3 bg-emerald-50/50 p-3 rounded-xl border border-emerald-100">
                        <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 font-black">↑</div>
@@ -1715,7 +1820,7 @@ export default function App() {
                           <p className="text-sm font-bold text-slate-800"><span className="text-emerald-600">{adviceMap[strongest].title}</span> (Band {maxScore})</p>
                        </div>
                     </div>
-                     
+                    
                     <div className="flex items-start gap-3 bg-rose-50/50 p-3 rounded-xl border border-rose-100">
                        <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 font-black">↓</div>
                        <div>
@@ -2012,7 +2117,7 @@ export default function App() {
                   <p className="mb-2 md:mb-3 text-xs md:text-sm"><strong>Công thức:</strong> Tóm tắt lại cả 2 mặt của vấn đề + Khẳng định lại Thesis Statement (1-2 câu).</p>
                   <div className="bg-white p-3 md:p-4 rounded-lg md:rounded-xl border-l-4 border-l-emerald-500 text-emerald-800 font-medium shadow-sm text-xs md:text-sm">In conclusion, while [Side A/40%] has some merits, I am of the opinion that [Side B/60%] is far more crucial due to [Reason 1] and [Reason 2].</div>
                </div>
-                
+               
             </div>
           </div>
         </div>
@@ -2025,7 +2130,7 @@ export default function App() {
                 <h3 className="font-black text-amber-600 text-base md:text-lg flex items-center gap-2"><Lightbulb size={22}/> Sơ đồ EGOSFI (40/60)</h3>
                 <button onClick={() => setShowIdeasModal(false)} className="hover:bg-slate-100 p-2 rounded-xl text-slate-500 transition-colors"><X size={20}/></button>
              </div>
-             
+              
              <div className="p-4 md:p-8 overflow-y-auto flex-1 min-h-0 custom-scrollbar relative">
                 {isGeneratingIdeas ? (
                   <div className="flex flex-col items-center justify-center py-20 h-full">
@@ -2109,22 +2214,15 @@ export default function App() {
       {showGuidedModal && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
           <div className="bg-slate-50 rounded-3xl shadow-2xl w-[95%] max-w-5xl max-h-[90vh] flex flex-col animate-slideUp overflow-hidden">
-             <div className="p-4 md:p-5 border-b bg-white shrink-0 flex flex-col gap-4">
+             <div className="p-4 md:p-5 border-b flex flex-col gap-3 bg-white shrink-0 z-10 sticky top-0 shadow-sm">
                 <div className="flex justify-between items-center">
-                    <h3 className="font-black text-indigo-600 text-base md:text-lg flex items-center gap-2"><Wand2 size={22}/> Guided Writing Wizard</h3>
-                    <button onClick={() => setShowGuidedModal(false)} className="hover:bg-slate-100 p-2 rounded-xl text-slate-500 transition-colors"><X size={20}/></button>
+                   <h3 className="font-black text-indigo-600 text-base md:text-lg flex items-center gap-2"><Wand2 size={22}/> Guided Writing Wizard (Step-by-step)</h3>
+                   <button onClick={() => setShowGuidedModal(false)} className="hover:bg-slate-100 p-2 rounded-xl text-slate-500 transition-colors"><X size={20}/></button>
                 </div>
-                {prompt && (
-                    <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl flex gap-3 items-start shadow-inner">
-                        <div className="bg-white p-1.5 rounded-lg shadow-sm border border-slate-100 shrink-0 mt-0.5">
-                            <Target size={16} className="text-indigo-500"/>
-                        </div>
-                        <div>
-                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1">Đề bài của bạn:</span>
-                            <p className="text-sm font-bold text-slate-800 leading-relaxed">{prompt}</p>
-                        </div>
-                    </div>
-                )}
+                <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex gap-3 items-start">
+                    <Target size={18} className="text-rose-500 shrink-0 mt-0.5"/>
+                    <p className="text-sm font-bold text-slate-700 leading-relaxed">{prompt}</p>
+                </div>
              </div>
 
              <div className="p-4 md:p-8 overflow-y-auto flex-1 min-h-0 custom-scrollbar relative">
@@ -2136,7 +2234,7 @@ export default function App() {
                    </div>
                 ) : guidedPlan && guidedPlan.steps ? (
                    <div className="max-w-4xl mx-auto flex flex-col h-full">
-                       
+                      
                       {/* Progress Bar */}
                       <div className="flex items-center justify-between mb-8 relative">
                          <div className="absolute left-0 top-1/2 w-full h-1 bg-slate-200 -z-10 -translate-y-1/2"></div>
@@ -2152,48 +2250,47 @@ export default function App() {
 
                       {/* Current Step Content */}
                       <div className="bg-white rounded-3xl shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
-                         <div className="p-4 md:p-5 border-b border-slate-100 bg-indigo-50/30">
-                            <h4 className="text-lg font-black text-slate-800 mb-1.5">{guidedPlan.steps[guidedStepIndex].title}</h4>
-                            <p className="text-slate-600 text-xs md:text-sm">{guidedPlan.steps[guidedStepIndex].instruction}</p>
-                             
-                            {/* Khu vực Gợi ý cấu trúc (CẬP NHẬT MỚI DẠNG GRID - TỐI ƯU KHÔNG GIAN) */}
-                            <div className="mt-3 p-3 md:p-4 bg-amber-50 border border-amber-100 rounded-2xl flex flex-col gap-2 shadow-inner">
+                         <div className="p-5 md:p-6 border-b border-slate-100 bg-indigo-50/30">
+                            <h4 className="text-lg md:text-xl font-black text-slate-800 mb-2">{guidedPlan.steps[guidedStepIndex].title}</h4>
+                            <p className="text-slate-600 text-sm">{guidedPlan.steps[guidedStepIndex].instruction}</p>
+                            
+                            {/* Khu vực Gợi ý cấu trúc (CẬP NHẬT MỚI DẠNG GRID) */}
+                            <div className="mt-4 p-4 md:p-5 bg-amber-50 border border-amber-100 rounded-2xl flex flex-col gap-3 shadow-inner">
                                <div className="flex items-center gap-2 mb-1">
-                                 <Lightbulb size={16} className="text-amber-500 shrink-0"/>
-                                 <span className="text-[10px] md:text-[11px] font-black uppercase text-amber-700 tracking-widest">💡 Chọn 1 trong các Cấu trúc sau để dịch:</span>
+                                 <Lightbulb size={20} className="text-amber-500 shrink-0"/>
+                                 <span className="text-[11px] font-black uppercase text-amber-700 tracking-widest">💡 Chọn 1 trong các Cấu trúc sau để dịch:</span>
                                </div>
-                               <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+                               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                                  {guidedPlan.steps[guidedStepIndex].structures?.map((str, idx) => (
-                                    <div key={idx} className="bg-white p-2.5 rounded-xl border border-amber-200/60 shadow-sm hover:border-amber-400 transition-colors">
-                                       <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded inline-block mb-1.5 border border-indigo-100">{str.name}</span>
-                                       <p className="text-amber-900 font-medium text-xs leading-relaxed">{str.hint}</p>
+                                    <div key={idx} className="bg-white p-3.5 rounded-xl border border-amber-200/60 shadow-sm hover:border-amber-400 transition-colors">
+                                       <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded inline-block mb-2 border border-indigo-100">{str.name}</span>
+                                       <p className="text-amber-900 font-medium text-sm leading-relaxed">{str.hint}</p>
                                     </div>
                                  ))}
-                                 {/* Fallback in case old AI cache returns vietnameseHint instead of structures */}
                                  {guidedPlan.steps[guidedStepIndex].vietnameseHint && !guidedPlan.steps[guidedStepIndex].structures && (
-                                    <div className="bg-white p-2.5 rounded-xl border border-amber-200/60 shadow-sm col-span-full">
-                                       <p className="text-amber-900 font-medium text-xs leading-relaxed">{guidedPlan.steps[guidedStepIndex].vietnameseHint}</p>
+                                    <div className="bg-white p-3.5 rounded-xl border border-amber-200/60 shadow-sm col-span-full">
+                                       <p className="text-amber-900 font-medium text-sm leading-relaxed">{guidedPlan.steps[guidedStepIndex].vietnameseHint}</p>
                                     </div>
                                  )}
                                </div>
                             </div>
                          </div>
 
-                         <div className="p-4 md:p-5 flex-1 flex flex-col gap-3 bg-slate-50/50 min-h-[300px]">
-                            {/* Từ vựng khuyến khích (nếu có) */}
+                         <div className="p-5 md:p-6 flex-1 flex flex-col gap-4 bg-slate-50/50">
+                            {/* Từ vựng bắt buộc (nếu có) */}
                             {guidedPlan.steps[guidedStepIndex].requiredVocab?.length > 0 && (
-                               <div className="mb-1">
-                                  <span className="text-[11px] font-black uppercase text-indigo-600 tracking-wider block mb-2">💡 Khuyến khích sử dụng các cụm từ sau để tối ưu điểm:</span>
+                               <div className="mb-2">
+                                  <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest block mb-2">💡 Cố gắng vận dụng các cụm từ sau để tối ưu điểm:</span>
                                   <div className="flex flex-wrap gap-2">
                                      {guidedPlan.steps[guidedStepIndex].requiredVocab.map((v, i) => {
                                         const currentText = guidedDrafts[guidedPlan.steps[guidedStepIndex].id] || '';
-                                        // Kiểm tra xem người dùng đã gõ từ này vào textarea chưa
-                                        const isUsed = currentText.toLowerCase().includes(v.phrase.toLowerCase());
+                                        // Sử dụng hàm checkVocabUsed thay vì includes thông thường
+                                        const isUsed = checkVocabUsed(currentText, v.phrase);
                                         return (
-                                           <div key={i} className={`px-2.5 py-1 rounded-lg border flex items-center gap-1.5 text-xs transition-all duration-300 ${isUsed ? 'bg-emerald-100 border-emerald-300 text-emerald-800 shadow-sm' : 'bg-white border-slate-200 text-slate-500'}`}>
-                                              {isUsed ? <CheckCircle size={12} className="text-emerald-600"/> : <Circle size={12} className="text-slate-300"/>}
+                                           <div key={i} className={`px-3 py-1.5 rounded-lg border flex items-center gap-2 text-sm transition-all duration-300 ${isUsed ? 'bg-emerald-100 border-emerald-300 text-emerald-800 shadow-sm' : 'bg-white border-slate-200 text-slate-500'}`}>
+                                              {isUsed ? <CheckCircle size={14} className="text-emerald-600"/> : <Circle size={14} className="text-slate-300"/>}
                                               <span className="font-bold">{v.phrase}</span>
-                                              <span className="text-[10px] opacity-70">({v.meaning})</span>
+                                              <span className="text-xs opacity-70">({v.meaning})</span>
                                            </div>
                                         )
                                      })}
@@ -2201,9 +2298,9 @@ export default function App() {
                                </div>
                             )}
 
-                            {/* Khung soạn thảo cho bước hiện tại - TĂNG MIN HEIGHT */}
+                            {/* Khung soạn thảo cho bước hiện tại */}
                             <textarea 
-                               className="w-full flex-1 min-h-[220px] md:min-h-[250px] p-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 transition-all text-slate-700 leading-relaxed text-sm md:text-base resize-none shadow-inner"
+                               className="w-full flex-1 min-h-[250px] p-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 transition-all text-slate-700 leading-relaxed resize-none shadow-inner text-base"
                                placeholder="Gõ đoạn văn tiếng Anh của bạn vào đây..."
                                value={guidedDrafts[guidedPlan.steps[guidedStepIndex].id]}
                                onChange={(e) => setGuidedDrafts({...guidedDrafts, [guidedPlan.steps[guidedStepIndex].id]: e.target.value})}
@@ -2219,7 +2316,7 @@ export default function App() {
                             >
                                <ArrowLeft size={16}/> Quay lại
                             </button>
-                             
+                            
                             {guidedStepIndex < guidedPlan.steps.length - 1 ? (
                                <button 
                                   onClick={() => setGuidedStepIndex(guidedStepIndex + 1)} 
@@ -2299,15 +2396,15 @@ export default function App() {
                    </>
                  )}
 
-                {vocabStep === 'analyzing' && (
+                 {vocabStep === 'analyzing' && (
                    <div className="py-12 flex flex-col items-center justify-center text-indigo-600">
                       <Loader2 className="animate-spin mb-4" size={40}/>
                       <p className="font-bold text-sm">AI đang trích xuất cụm từ và tạo câu mẫu...</p>
                    </div>
-                )}
+                 )}
 
-                {vocabStep === 'reviewed' && (
-                  <div className="space-y-4">
+                 {vocabStep === 'reviewed' && (
+                   <div className="space-y-4">
                      <div className="flex gap-3 mb-2">
                         <select className="w-1/2 p-3 border-2 rounded-xl text-sm font-bold bg-white focus:border-emerald-500 outline-none text-slate-700" value={newVocab.topic} onChange={(e) => setNewVocab({...newVocab, topic: e.target.value, subtopic: ''})}>
                            <option value="">-- Chọn Chủ đề --</option>
@@ -2337,8 +2434,8 @@ export default function App() {
                        <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block ml-1 flex items-center gap-1"><BookOpen size={12}/> Câu mẫu 2 (IELTS Band 7.5+)</label>
                        <textarea className="w-full p-3.5 border-2 rounded-xl text-xs font-medium bg-slate-50 focus:bg-white focus:border-emerald-500 outline-none leading-relaxed" rows={3} value={newVocab.example2} onChange={(e) => setNewVocab({...newVocab, example2: e.target.value})} />
                      </div>
-                  </div>
-                )}
+                   </div>
+                 )}
              </div>
               
              <div className="p-5 bg-slate-50 flex justify-end gap-3 border-t shrink-0">
