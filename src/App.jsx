@@ -12,7 +12,7 @@ import {
 // Thay đổi thành "true" CHỈ KHI MUỐN TEST GIAO DIỆN Ở KHUNG BÊN PHẢI.
 // BẮT BUỘC ĐỂ "false" KHI ĐẨY CODE LÊN GITHUB/VERCEL ĐỂ DÙNG MÔI TRƯỜNG THẬT.
 // ==========================================
-const IS_PREVIEW_MODE = true; 
+const IS_PREVIEW_MODE = false; 
 
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from 'firebase/app';
