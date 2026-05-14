@@ -703,7 +703,7 @@ export default function App() {
     setGuidedPlan(null); setGuidedDrafts({ intro: '', body1: '', body2: '', conclusion: '' }); setGuidedStepIndex(0);
 
     const systemInstruction = `You are an expert IELTS Writing Tutor. The student needs to write an essay for this prompt: "${prompt}".
-    Create a 4-step Guided Writing Plan. For Body 1 and Body 2, provide EXACTLY 3 natural, precise, and context-appropriate collocations (Band 7.0 - 7.5) that the student MUST use.
+    Create a 4-step Guided Writing Plan. For Introduction, Body 1 and Body 2, provide EXACTLY 3 natural, precise, and context-appropriate collocations (Band 7.0 - 7.5) that the student MUST use.
     
     CRITICAL RULES FOR VOCABULARY AND GRAMMAR:
     1. DO NOT use obscure "big words", overly complex grammar, or forced academic jargon (avoid "đao to búa lớn").
@@ -720,11 +720,11 @@ export default function App() {
             { "name": "Cách 1: Cơ bản, Rõ ràng (Band 6.5-7.0)", "hint": "Gợi ý dịch: Nhiều người cho rằng... Tuy nhiên, tôi hoàn toàn tin rằng..." },
             { "name": "Cách 2: Tự nhiên, Trôi chảy (Band 7.5)", "hint": "Gợi ý dịch: Mặc dù không thể phủ nhận rằng..., quan điểm của tôi là..." }
           ],
-          "requiredVocab": []
+          "requiredVocab": [{"phrase": "collocation 1", "meaning": "nghĩa tiếng việt"}, {"phrase": "collocation 2", "meaning": "nghĩa tiếng việt"}, {"phrase": "collocation 3", "meaning": "nghĩa tiếng việt"}]
         },
         {
           "id": "body1", "title": "2. Thân bài 1 (Đoạn nhượng bộ / Mặt trái)", 
-          "instruction": "Viết đoạn Body 1. Bạn BẮT BUỘC phải dùng 3 cụm từ dưới đây vào đoạn văn của mình.", 
+          "instruction": "Viết đoạn Body 1. Cố gắng sử dụng các cụm từ dưới đây vào đoạn văn của mình.", 
           "structures": [
             { "name": "Cách 1: Trực tiếp, dễ hiểu", "hint": "Dịch: Một mặt, có vài lý do tại sao [Quan điểm A] hợp lý. Đầu tiên là..." },
             { "name": "Cách 2: Dùng chủ ngữ giả / Trôi chảy hơn", "hint": "Dịch: Có thể hiểu được tại sao một số người ủng hộ [Quan điểm A]. Lập luận chính nằm ở chỗ..." }
@@ -733,7 +733,7 @@ export default function App() {
         },
         {
           "id": "body2", "title": "3. Thân bài 2 (Đoạn khẳng định / Mặt lợi)", 
-          "instruction": "Viết đoạn Body 2 bảo vệ quan điểm chính. BẮT BUỘC dùng 3 cụm từ dưới đây.", 
+          "instruction": "Viết đoạn Body 2 bảo vệ quan điểm chính. Cố gắng sử dụng các cụm từ dưới đây.", 
           "structures": [
             { "name": "Cách 1: Chuyển ý mạch lạc", "hint": "Dịch: Mặt khác, tôi cho rằng những lợi ích thì quan trọng hơn nhiều. Cụ thể là..." },
             { "name": "Cách 2: Nhấn mạnh, tự nhiên", "hint": "Dịch: Bất chấp những lập luận trên, tôi vẫn tin tưởng mãnh liệt rằng..." }
@@ -802,19 +802,6 @@ export default function App() {
     3. TARGET: ${targetInstruction} Provide specific comments for each criterion based on the descriptors, and detailedCorrections: [{original, corrected, explanation}].
     4. Return strictly JSON: { "overallBand": 6.5, "trScore": 6.0, "trComment": "...", "ccScore": 7.0, "ccComment": "...", "lrScore": 6.0, "lrComment": "...", "graScore": 6.0, "graComment": "...", "detailedCorrections": [...], "polishedEssay": "Band 8.0 polished version of what student wrote." }`;
 
-    if (isGuidedDraft) {
-        systemInstruction = `You are an expert English grammar tutor. The student wrote this essay using a Guided Translation Tool where ideas and structure were completely provided.
-        1. SCORING CRITERIA: Automatically assign 9.0 for Task Response (TR) and Coherence & Cohesion (CC) since ideas were provided. Grade ONLY Lexical Resource (LR) and Grammatical Range & Accuracy (GRA) strictly based on how they translated and connected sentences.
-        2. SCORING RULE: Calculate the average of the 4 criteria. Round down to the nearest 0.5.
-        3. COMMENTS: 
-           - trComment: "✅ Ý tưởng và lập luận đã được hỗ trợ bởi hệ thống Guided Wizard. Bạn đã làm rất tốt việc bám sát sườn bài!"
-           - ccComment: "✅ Cấu trúc đoạn và tính liên kết được hỗ trợ bởi hệ thống. Rất tốt!"
-           - lrComment: Evaluate if they used the suggested collocations correctly and naturally.
-           - graComment: Focus heavily on grammar, syntax, verb tenses, and preposition mistakes made during translation.
-        4. TARGET: ${targetInstruction} Provide detailedCorrections: [{original, corrected, explanation}].
-        5. Return strictly JSON: { "overallBand": 7.0, "trScore": 9.0, "trComment": "...", "ccScore": 9.0, "ccComment": "...", "lrScore": 6.0, "lrComment": "...", "graScore": 6.0, "graComment": "...", "detailedCorrections": [...], "polishedEssay": "Band 8.0 polished version." }`;
-    }
-    
     try {
       const result = await fetchWithRetry({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1301,11 +1288,6 @@ export default function App() {
 
               <div className="pt-2 border-t">
                  <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-1.5 text-sm"><Highlighter className="text-rose-500" size={16}/> Sửa lỗi chi tiết</h4>
-                 
-                 <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-100 mb-4 text-xs text-indigo-800 leading-relaxed flex gap-2">
-                    <Lightbulb size={16} className="shrink-0 text-indigo-600 mt-0.5"/>
-                    <p><strong>Mẹo tiết kiệm năng lượng:</strong> Hãy gõ lại toàn bộ các câu bạn muốn sửa, sau đó bấm nút <strong className="text-indigo-600">Kiểm tra tất cả</strong> ở cuối danh sách để AI chấm một lần duy nhất nhé!</p>
-                 </div>
 
                  <div className="space-y-4">
                     {evaluationResult.detailedCorrections.map((c, i) => {
@@ -2170,48 +2152,48 @@ export default function App() {
 
                       {/* Current Step Content */}
                       <div className="bg-white rounded-3xl shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
-                         <div className="p-5 md:p-6 border-b border-slate-100 bg-indigo-50/30">
-                            <h4 className="text-lg md:text-xl font-black text-slate-800 mb-2">{guidedPlan.steps[guidedStepIndex].title}</h4>
-                            <p className="text-slate-600 text-sm">{guidedPlan.steps[guidedStepIndex].instruction}</p>
+                         <div className="p-4 md:p-5 border-b border-slate-100 bg-indigo-50/30">
+                            <h4 className="text-lg font-black text-slate-800 mb-1.5">{guidedPlan.steps[guidedStepIndex].title}</h4>
+                            <p className="text-slate-600 text-xs md:text-sm">{guidedPlan.steps[guidedStepIndex].instruction}</p>
                              
-                            {/* Khu vực Gợi ý cấu trúc (CẬP NHẬT MỚI DẠNG GRID) */}
-                            <div className="mt-4 p-4 md:p-5 bg-amber-50 border border-amber-100 rounded-2xl flex flex-col gap-3 shadow-inner">
+                            {/* Khu vực Gợi ý cấu trúc (CẬP NHẬT MỚI DẠNG GRID - TỐI ƯU KHÔNG GIAN) */}
+                            <div className="mt-3 p-3 md:p-4 bg-amber-50 border border-amber-100 rounded-2xl flex flex-col gap-2 shadow-inner">
                                <div className="flex items-center gap-2 mb-1">
-                                 <Lightbulb size={20} className="text-amber-500 shrink-0"/>
-                                 <span className="text-[11px] font-black uppercase text-amber-700 tracking-widest">💡 Chọn 1 trong các Cấu trúc sau để dịch:</span>
+                                 <Lightbulb size={16} className="text-amber-500 shrink-0"/>
+                                 <span className="text-[10px] md:text-[11px] font-black uppercase text-amber-700 tracking-widest">💡 Chọn 1 trong các Cấu trúc sau để dịch:</span>
                                </div>
-                               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                               <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
                                  {guidedPlan.steps[guidedStepIndex].structures?.map((str, idx) => (
-                                    <div key={idx} className="bg-white p-3.5 rounded-xl border border-amber-200/60 shadow-sm hover:border-amber-400 transition-colors">
-                                       <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded inline-block mb-2 border border-indigo-100">{str.name}</span>
-                                       <p className="text-amber-900 font-medium text-sm leading-relaxed">{str.hint}</p>
+                                    <div key={idx} className="bg-white p-2.5 rounded-xl border border-amber-200/60 shadow-sm hover:border-amber-400 transition-colors">
+                                       <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded inline-block mb-1.5 border border-indigo-100">{str.name}</span>
+                                       <p className="text-amber-900 font-medium text-xs leading-relaxed">{str.hint}</p>
                                     </div>
                                  ))}
                                  {/* Fallback in case old AI cache returns vietnameseHint instead of structures */}
                                  {guidedPlan.steps[guidedStepIndex].vietnameseHint && !guidedPlan.steps[guidedStepIndex].structures && (
-                                    <div className="bg-white p-3.5 rounded-xl border border-amber-200/60 shadow-sm col-span-full">
-                                       <p className="text-amber-900 font-medium text-sm leading-relaxed">{guidedPlan.steps[guidedStepIndex].vietnameseHint}</p>
+                                    <div className="bg-white p-2.5 rounded-xl border border-amber-200/60 shadow-sm col-span-full">
+                                       <p className="text-amber-900 font-medium text-xs leading-relaxed">{guidedPlan.steps[guidedStepIndex].vietnameseHint}</p>
                                     </div>
                                  )}
                                </div>
                             </div>
                          </div>
 
-                         <div className="p-5 md:p-6 flex-1 flex flex-col gap-4 bg-slate-50/50">
-                            {/* Từ vựng bắt buộc (nếu có) */}
+                         <div className="p-4 md:p-5 flex-1 flex flex-col gap-3 bg-slate-50/50 min-h-[300px]">
+                            {/* Từ vựng khuyến khích (nếu có) */}
                             {guidedPlan.steps[guidedStepIndex].requiredVocab?.length > 0 && (
-                               <div className="mb-2">
-                                  <span className="text-[10px] font-black uppercase text-rose-500 tracking-widest block mb-2">🎯 Ép dùng từ (Bắt buộc):</span>
+                               <div className="mb-1">
+                                  <span className="text-[11px] font-black uppercase text-indigo-600 tracking-wider block mb-2">💡 Khuyến khích sử dụng các cụm từ sau để tối ưu điểm:</span>
                                   <div className="flex flex-wrap gap-2">
                                      {guidedPlan.steps[guidedStepIndex].requiredVocab.map((v, i) => {
                                         const currentText = guidedDrafts[guidedPlan.steps[guidedStepIndex].id] || '';
                                         // Kiểm tra xem người dùng đã gõ từ này vào textarea chưa
                                         const isUsed = currentText.toLowerCase().includes(v.phrase.toLowerCase());
                                         return (
-                                           <div key={i} className={`px-3 py-1.5 rounded-lg border flex items-center gap-2 text-sm transition-all duration-300 ${isUsed ? 'bg-emerald-100 border-emerald-300 text-emerald-800 shadow-sm' : 'bg-white border-slate-200 text-slate-500'}`}>
-                                              {isUsed ? <CheckCircle size={14} className="text-emerald-600"/> : <Circle size={14} className="text-slate-300"/>}
+                                           <div key={i} className={`px-2.5 py-1 rounded-lg border flex items-center gap-1.5 text-xs transition-all duration-300 ${isUsed ? 'bg-emerald-100 border-emerald-300 text-emerald-800 shadow-sm' : 'bg-white border-slate-200 text-slate-500'}`}>
+                                              {isUsed ? <CheckCircle size={12} className="text-emerald-600"/> : <Circle size={12} className="text-slate-300"/>}
                                               <span className="font-bold">{v.phrase}</span>
-                                              <span className="text-xs opacity-70">({v.meaning})</span>
+                                              <span className="text-[10px] opacity-70">({v.meaning})</span>
                                            </div>
                                         )
                                      })}
@@ -2219,9 +2201,9 @@ export default function App() {
                                </div>
                             )}
 
-                            {/* Khung soạn thảo cho bước hiện tại */}
+                            {/* Khung soạn thảo cho bước hiện tại - TĂNG MIN HEIGHT */}
                             <textarea 
-                               className="w-full flex-1 min-h-[150px] p-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 transition-all text-slate-700 leading-relaxed resize-none shadow-inner"
+                               className="w-full flex-1 min-h-[220px] md:min-h-[250px] p-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 transition-all text-slate-700 leading-relaxed text-sm md:text-base resize-none shadow-inner"
                                placeholder="Gõ đoạn văn tiếng Anh của bạn vào đây..."
                                value={guidedDrafts[guidedPlan.steps[guidedStepIndex].id]}
                                onChange={(e) => setGuidedDrafts({...guidedDrafts, [guidedPlan.steps[guidedStepIndex].id]: e.target.value})}
