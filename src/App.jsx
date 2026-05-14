@@ -466,12 +466,13 @@ export default function App() {
       const cursorPosition = editorRef.current.selectionEnd;
       const textBeforeCursor = essay.substring(0, cursorPosition);
       
-      const match = textBeforeCursor.match(/(?:^|\s)@@([^\s@]+)$/);
+      // Đổi regex thành tìm cụm từ bị khóa bởi 2 dấu @ (vd: @bảo vệ môi trường@)
+      const match = textBeforeCursor.match(/(?:^|[\s\n])@([^@]+)@$/);
       
       if (match) {
          e.preventDefault(); 
-         const vietnameseWord = match[1].replace(/_/g, ' '); 
-         const wordStartIndex = cursorPosition - match[0].length + (match[0].startsWith(' ') ? 1 : 0);
+         const vietnameseWord = match[1].trim(); 
+         const wordStartIndex = cursorPosition - match[0].length + (match[0].match(/^[\s\n]/) ? 1 : 0);
          
          if (copilotUses <= 0) {
             return showToast("Bạn đã hết quyền trợ giúp từ vựng cho bài này. Hãy cố gắng vận dụng vốn từ của bản thân!", "error", 5000);
@@ -1209,7 +1210,7 @@ export default function App() {
 
   const renderPracticeTab = () => {
     const getPlaceholderText = () => {
-        const hint = "\n\n💡 MẸO: Gõ @@[từ tiếng việt] và bấm Dấu cách để AI gợi ý từ vựng cao cấp! (Ví dụ: @@bảo vệ môi trường)";
+        const hint = "\n\n💡 MẸO: Gõ @từ tiếng việt@ và bấm Dấu cách để AI gợi ý từ vựng cao cấp! (Ví dụ: @bảo vệ môi trường@)";
         if (writingTarget === 'intro_conc') return "Viết phần Mở bài và Kết bài của bạn tại đây..." + hint;
         if (writingTarget === 'body') return "Viết phần Thân bài (Body) của bạn tại đây..." + hint;
         return "Viết trọn vẹn bài essay của bạn tại đây..." + hint;
@@ -1333,7 +1334,7 @@ export default function App() {
                   <button onClick={() => { setIsTimerRunning(false); setTimeRemaining(40 * 60); }} className="p-0.5 text-slate-400 hover:text-slate-600 transition-colors" title="Reset thời gian"><RotateCcw size={12}/></button>
               </div>
               <div className="px-2 py-1 rounded bg-indigo-50 border border-indigo-100 flex items-center gap-1 text-xs font-bold text-indigo-700">
-                  🪄 Gợi ý từ (@@): {copilotUses}/3
+                  🪄 Gợi ý từ (@...@): {copilotUses}/3
               </div>
             </div>
             <div className="flex items-center gap-2 ml-auto">
