@@ -38,7 +38,7 @@ if (!IS_PREVIEW_MODE) {
   }
 }
 
-// --- TOPICS VÀ SUBTOPICS (Đã xóa Health, Cập nhật Lifestyle) ---
+// --- TOPICS VÀ SUBTOPICS ---
 const TOPICS = [
   { id: 'general', name: 'General (Đa chủ đề)' },
   { id: 'education', name: 'Education (Giáo dục)' },
@@ -47,7 +47,7 @@ const TOPICS = [
   { id: 'society', name: 'Society (Xã hội)' },
   { id: 'work', name: 'Work (Công việc & Kinh tế)' },
   { id: 'crime', name: 'Crime (Tội phạm & Luật pháp)' },
-  { id: 'media', name: 'Media & Arts (Truyền thông & Nghệ thuật)' },
+  { id: 'media', name: 'Media & Advertising (Truyền thông & Quảng cáo)' },
   { id: 'lifestyle', name: 'Lifestyle (Lối sống & Đời sống cá nhân)' }
 ];
 
@@ -88,7 +88,10 @@ const SUBTOPICS = {
     { id: 'crime_prevention', name: 'Phòng chống tội phạm & An ninh' }
   ],
   media: [
-    { id: 'media_news', name: 'Tin tức, Báo chí & Quảng cáo' },
+    { id: 'media_news_influence', name: 'Nội dung tin tức & Quyền lực truyền thông' },
+    { id: 'media_formats', name: 'Các loại hình truyền thông' },
+    { id: 'media_ads_impact', name: 'Tác động của Quảng cáo & Nhu cầu tiêu dùng' },
+    { id: 'media_ads_regulation', name: 'Quản lý quảng cáo & Đại sứ thương hiệu' },
     { id: 'media_arts', name: 'Nghệ thuật, Bảo tàng & Nghệ sĩ' }
   ],
   lifestyle: [
@@ -105,7 +108,8 @@ const SAMPLE_PROMPTS = {
   env_climate: "Global warming is one of the most serious issues that the world is facing today. What are the causes of global warming and what measures can governments and individuals take to tackle the issue?",
   tech_ai: "Some people believe that artificial intelligence will eventually replace human workers in most industries. To what extent do you agree or disagree?",
   soc_culture: "The increase in international travel and business has led to a situation where people are adopting a single global culture. Do you think the advantages of this outweigh the disadvantages?",
-  life_health_recreation: "Stress: What are the factors that cause stress and how to cope with stress?"
+  life_health_recreation: "Stress: What are the factors that cause stress and how to cope with stress?",
+  media_news_influence: "The news media have become too much influence in people's lives today and this is a negative development. To what extent do you agree or disagree?"
 };
 
 // --- GEMINI API HELPERS ---
@@ -210,14 +214,12 @@ const getFullSentenceDetails = (fullText, errorText, correctedText) => {
   };
 };
 
-// --- THUẬT TOÁN FUZZY MATCHING CHO TỪ VỰNG ---
 const checkVocabUsed = (text, phrase) => {
     if (!text || !phrase) return false;
     const normalize = (str) => str.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g,"").trim();
     const textWords = normalize(text).split(/\s+/);
     const phraseWords = normalize(phrase).split(/\s+/);
     
-    // Kiểm tra xem phần lớn các từ khóa trong phrase có nằm trong text hay không (Bỏ qua 's', 'ed', 'ing')
     return phraseWords.every(pw => {
         if(pw.length <= 3) return textWords.includes(pw);
         let stem = pw;
@@ -239,7 +241,7 @@ export default function App() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isAuthChecking, setIsAuthChecking] = useState(!IS_PREVIEW_MODE);
 
-  // --- 🔥 VÁ LỖI 1: Lắng nghe trạng thái đăng nhập (Giúp Vercel không bị hiện Guest) ---
+  // Lắng nghe trạng thái đăng nhập
   useEffect(() => {
     if (!IS_PREVIEW_MODE && auth) {
       const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -250,7 +252,6 @@ export default function App() {
     }
   }, []);
 
-  // --- Thống kê chuỗi ngày học (Streak) ---
   const [userStats, setUserStats] = useState(IS_PREVIEW_MODE ? { currentStreak: 4, longestStreak: 12, lastWriteDate: new Date(Date.now() - 86400000).toLocaleDateString('en-CA') } : { currentStreak: 0, longestStreak: 0, lastWriteDate: null });
 
   const [activeTab, setActiveTab] = useState('practice'); 
@@ -263,10 +264,8 @@ export default function App() {
   const [wordCount, setWordCount] = useState(0);
   const [writingTarget, setWritingTarget] = useState('full');
   
-  // AI STAMINA (RPM TRACKER)
   const [apiTimestamps, setApiTimestamps] = useState([]);
   
-  // AI COPILOT (@@ Tính năng)
   const [copilotUses, setCopilotUses] = useState(3);
   const [copilotCooldown, setCopilotCooldown] = useState(0);
   const [showCopilotMenu, setShowCopilotMenu] = useState(false);
@@ -274,7 +273,6 @@ export default function App() {
   const [isCopilotLoading, setIsCopilotLoading] = useState(false);
   const [copilotWordInfo, setCopilotWordInfo] = useState({ word: '', index: -1, length: 0 });
 
-  // Sidebars & Modals
   const [selectedSample, setSelectedSample] = useState(null); 
   const [selectedVocab, setSelectedVocab] = useState(null);
   const [showVocabSidebar, setShowVocabSidebar] = useState(false);
@@ -286,29 +284,26 @@ export default function App() {
   const [showVocabModal, setShowVocabModal] = useState(false);
   const [showGuidedModal, setShowGuidedModal] = useState(false); 
 
-  // Guided Writing Wizard
   const [guidedPlan, setGuidedPlan] = useState(null);
   const [guidedStepIndex, setGuidedStepIndex] = useState(0);
   const [guidedDrafts, setGuidedDrafts] = useState({ intro: '', body1: '', body2: '', conclusion: '' });
   const [isGeneratingGuide, setIsGeneratingGuide] = useState(false);
   const [isGuidedDraft, setIsGuidedDraft] = useState(false); 
 
-  // Evaluation & Data
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState(null);
   
   const [sampleEssays, setSampleEssays] = useState(IS_PREVIEW_MODE ? [
-    { id: 's1', topic: 'lifestyle', subtopic: 'life_stress', prompt: 'What are the factors that cause stress and how to cope with stress?', content: 'It is true that more people are suffering from stress than ever...' },
-    { id: 's2', topic: 'society', subtopic: 'soc_culture', prompt: 'Some people think that it is best to save money...', content: 'Opinions are divided on whether to save or spend money...' }
+    { id: 's1', topic: 'media', subtopic: 'media_news_influence', prompt: 'The news media have become too much influence in people\'s lives today and this is a negative development. To what extent do you agree or disagree?', content: 'Some people believe that the news media has too much of a bearing on public opinion...' },
+    { id: 's2', topic: 'lifestyle', subtopic: 'life_health_recreation', prompt: 'Today many children spend a lot of time playing computer games and little time on sports. Why is it? Is it a positive or negative development?', content: 'It is true that many young children spend a significant amount of time playing video games instead of playing sports...' }
   ] : []);
   const [vocabularies, setVocabularies] = useState(IS_PREVIEW_MODE ? [
-    { id: 'v1', topicId: 'environment', subtopicId: 'env_pollution', phrase: 'environmental degradation', translation: 'sự suy thoái môi trường', examples: ['This policy aims to halt **environmental degradation**.', 'Rapid **environmental degradation** is a serious issue.'] }
+    { id: 'v1', topicId: 'media', subtopicId: 'media_ads_impact', phrase: 'consumerist mentality', translation: 'tâm lý chủ nghĩa tiêu dùng', examples: ['Advertising can produce a **consumerist mentality**.', 'A **consumerist mentality** is bad for the moral and spiritual life.'] }
   ] : []);
   const [evaluationsHistory, setEvaluationsHistory] = useState(IS_PREVIEW_MODE ? [
     { id: 'ev1', prompt: 'Sample prompt 1', wordCount: 250, target: 'full', overallBand: 6.5, trScore: 6.0, ccScore: 6.0, lrScore: 7.0, graScore: 7.0, createdAt: new Date().toISOString() }
   ] : []);
   
-  // --- 🔥 VÁ LỖI 2: Đồng bộ hóa dữ liệu (Real-time fetching) từ Firebase xuống giao diện ---
   useEffect(() => {
     if (IS_PREVIEW_MODE || !user || !db) return;
     
@@ -335,7 +330,6 @@ export default function App() {
       unsubStats();
     };
   }, [user]);
-  // -----------------------------------------------------------------------------------------
 
   const [mindMapData, setMindMapData] = useState(null);
   const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
@@ -397,7 +391,6 @@ export default function App() {
     setShowVocabSidebar(false);
   };
 
-  // Hàm Get Relevant Samples chung cho công nghệ RAG
   const getRelevantSamples = (maxCount) => {
     let relevantSamples = sampleEssays.filter(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
     if (relevantSamples.length < maxCount && selectedSubtopic) {
@@ -411,7 +404,6 @@ export default function App() {
     return relevantSamples.slice(0, maxCount);
   };
 
-  // --- THUẬT TOÁN "CỬA SỔ TRƯỢT" KIỂM SOÁT RPM ---
   useEffect(() => {
     const timer = setInterval(() => {
       const now = Date.now();
@@ -421,7 +413,7 @@ export default function App() {
   }, []);
 
   const checkAndRecordApiCall = () => {
-    if (IS_PREVIEW_MODE) return true; // Cho qua ở chế độ preview
+    if (IS_PREVIEW_MODE) return true; 
     
     if (apiTimestamps.length >= 15) {
       showToast("⚡ Năng lượng AI đã cạn. Hệ thống đang tự hồi phục, vui lòng đợi vài giây!", "error", 5000);
@@ -436,7 +428,6 @@ export default function App() {
     return true; 
   };
 
-  // --- ĐỒNG HỒ COOLDOWN CHO COPILOT ---
   useEffect(() => {
     if (copilotCooldown > 0) {
        copilotCooldownRef.current = copilotCooldown;
@@ -491,14 +482,12 @@ export default function App() {
     }
   };
 
-  // --- TÍNH NĂNG AI COPILOT (GÕ TẮT @từ vựng@) ---
   const handleKeyDown = (e) => {
     if ((e.key === 'Enter' || e.key === ' ' || e.key === 'Tab') && !showCopilotMenu) {
       if (!editorRef.current) return;
       const cursorPosition = editorRef.current.selectionEnd;
       const textBeforeCursor = essay.substring(0, cursorPosition);
       
-      // Khóa 2 đầu: @từ tiếng việt@
       const match = textBeforeCursor.match(/(?:^|\s)@([^@]+)@$/);
       
       if (match) {
@@ -565,7 +554,6 @@ export default function App() {
     }, 50);
   };
 
-  // --- UI EFFECTS ---
   useEffect(() => { setWordCount(essay.trim().split(/\s+/).filter(word => word.length > 0).length); }, [essay]);
   useEffect(() => { if (promptRef.current) { promptRef.current.style.height = 'auto'; promptRef.current.style.height = `${promptRef.current.scrollHeight}px`; } }, [prompt]);
   useEffect(() => {
@@ -608,7 +596,6 @@ export default function App() {
     return () => document.removeEventListener('mouseup', handleMouseUp);
   }, [showApiKeyModal, showCopilotMenu]);
 
-  // --- ACTIONS ---
   const handleOpenReviewVocab = () => {
     setNewVocab({ topic: selectedTopic || '', subtopic: selectedSubtopic || '', phrase: selectionPopup.text, basePhrase: '', translation: '', example1: '', example2: '' });
     setVocabStep('init'); setShowVocabModal(true); setSelectionPopup({ show: false, text: '', x: 0, y: 0 });
@@ -1088,9 +1075,17 @@ export default function App() {
            </span>
         </div>
         
-        <button onClick={() => setShowApiKeyModal(true)} className="bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Đổi API Key"><Key size={14} /></button>
-        <button onClick={() => setActiveTab('backup')} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Backup & Restore"><AlertTriangle size={14} /></button>
-        <button onClick={handleLogout} className="bg-rose-500/20 hover:bg-rose-500 hover:text-white text-rose-400 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Đăng xuất"><LogOut size={14} /></button>
+        {!user && !IS_PREVIEW_MODE ? (
+           <button onClick={handleLogin} disabled={isLoggingIn} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors">
+              {isLoggingIn ? <Loader2 size={14} className="animate-spin" /> : "Đăng nhập"}
+           </button>
+        ) : (
+           <>
+             <button onClick={() => setShowApiKeyModal(true)} className="bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Đổi API Key"><Key size={14} /></button>
+             <button onClick={() => setActiveTab('backup')} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Backup & Restore"><AlertTriangle size={14} /></button>
+             <button onClick={handleLogout} className="bg-rose-500/20 hover:bg-rose-500 hover:text-white text-rose-400 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Đăng xuất"><LogOut size={14} /></button>
+           </>
+        )}
       </div>
     </div>
   );
@@ -1218,7 +1213,7 @@ export default function App() {
               <div className="px-2 py-1 rounded bg-white border text-xs font-bold">{wordCount} từ</div>
               <div className="bg-white px-2 py-1 rounded border flex items-center gap-1.5 text-xs font-mono font-bold text-slate-700">
                   {formatTime(timeRemaining)}
-                  <button onClick={() => setIsTimerRunning(!isTimerRunning)} className="p-0.5 hover:text-emerald-600 transition-colors">{isTimerRunning ? <Pause size={12}/> : <Play size={12}/>}</button>
+                  <button onClick={() => setIsTimerRunning(!isTimerRunning)} className="p-0.5 hover:textemerald-600 transition-colors">{isTimerRunning ? <Pause size={12}/> : <Play size={12}/>}</button>
                   <button onClick={() => { setIsTimerRunning(false); setTimeRemaining(40 * 60); }} className="p-0.5 text-slate-400 hover:text-slate-600 transition-colors" title="Reset thời gian"><RotateCcw size={12}/></button>
               </div>
               <div className="px-2 py-1 rounded bg-indigo-50 border border-indigo-100 flex items-center gap-1 text-xs font-bold text-indigo-700">
