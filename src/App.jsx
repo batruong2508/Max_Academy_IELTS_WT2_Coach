@@ -237,12 +237,14 @@ export default function App() {
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isAuthChecking, setIsAuthChecking] = useState(!IS_PREVIEW_MODE);
 
   // --- 🔥 VÁ LỖI 1: Lắng nghe trạng thái đăng nhập (Giúp Vercel không bị hiện Guest) ---
   useEffect(() => {
     if (!IS_PREVIEW_MODE && auth) {
       const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
         setUser(currentUser);
+        setIsAuthChecking(false);
       });
       return () => unsubscribe();
     }
@@ -1082,21 +1084,13 @@ export default function App() {
         <div className="bg-slate-800 px-3 py-1.5 rounded-lg flex flex-col hidden sm:flex">
            <span className="text-[9px] text-slate-400 uppercase font-black">Học viên</span>
            <span className="text-xs text-white font-medium truncate max-w-[120px]">
-             {user ? (user.email || 'User') : 'Guest'}
+             {user ? (user.email || 'User') : 'Khách'}
            </span>
         </div>
         
-        {!user && !IS_PREVIEW_MODE ? (
-           <button onClick={handleLogin} disabled={isLoggingIn} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors">
-              {isLoggingIn ? <Loader2 size={14} className="animate-spin" /> : "Đăng nhập"}
-           </button>
-        ) : (
-           <>
-             <button onClick={() => setShowApiKeyModal(true)} className="bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Đổi API Key"><Key size={14} /></button>
-             <button onClick={() => setActiveTab('backup')} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Backup & Restore"><AlertTriangle size={14} /></button>
-             <button onClick={handleLogout} className="bg-rose-500/20 hover:bg-rose-500 hover:text-white text-rose-400 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Đăng xuất"><LogOut size={14} /></button>
-           </>
-        )}
+        <button onClick={() => setShowApiKeyModal(true)} className="bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Đổi API Key"><Key size={14} /></button>
+        <button onClick={() => setActiveTab('backup')} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Backup & Restore"><AlertTriangle size={14} /></button>
+        <button onClick={handleLogout} className="bg-rose-500/20 hover:bg-rose-500 hover:text-white text-rose-400 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Đăng xuất"><LogOut size={14} /></button>
       </div>
     </div>
   );
@@ -1788,6 +1782,38 @@ export default function App() {
        </div>
     </div>
   );
+
+  if (isAuthChecking) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
+        <Loader2 className="animate-spin text-emerald-600 mb-4" size={48} />
+        <p className="text-slate-500 font-bold animate-pulse">Đang kết nối hệ thống...</p>
+      </div>
+    );
+  }
+
+  if (!user && !IS_PREVIEW_MODE) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-slate-900 px-4">
+        <div className="bg-white p-8 md:p-12 rounded-[40px] shadow-2xl max-w-md w-full text-center flex flex-col items-center animate-slideUp">
+          <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-3xl flex items-center justify-center mb-6 shadow-inner">
+            <Brain size={40}/>
+          </div>
+          <h1 className="text-3xl font-black text-slate-800 mb-3">Max Academy Pro</h1>
+          <p className="text-slate-500 text-sm mb-8 leading-relaxed">Nền tảng luyện viết IELTS Task 2 cá nhân hóa tích hợp AI và RAG.</p>
+          
+          <button 
+            onClick={handleLogin} 
+            disabled={isLoggingIn}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-lg py-4 rounded-2xl shadow-xl shadow-emerald-600/20 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            {isLoggingIn ? <Loader2 size={24} className="animate-spin" /> : "Đăng nhập bằng Google"}
+          </button>
+          <p className="text-[10px] text-slate-400 mt-6 uppercase font-bold tracking-widest flex items-center justify-center gap-1.5"><ShieldAlert size={12}/> Dữ liệu lưu trữ riêng tư</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen bg-slate-100 font-sans overflow-hidden">
