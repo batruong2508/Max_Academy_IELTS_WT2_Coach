@@ -9,8 +9,6 @@ import {
 
 // ==========================================
 // 🔴 CÔNG TẮC BẬT/TẮT CHẾ ĐỘ PREVIEW
-// Thay đổi thành "true" CHỈ KHI MUỐN TEST GIAO DIỆN Ở KHUNG BÊN PHẢI.
-// BẮT BUỘC ĐỂ "false" KHI ĐẨY CODE LÊN GITHUB/VERCEL ĐỂ DÙNG MÔI TRƯỜNG THẬT.
 // ==========================================
 const IS_PREVIEW_MODE = false; 
 
@@ -19,7 +17,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, where, getDocs, setDoc } from 'firebase/firestore';
 
-// --- FIREBASE INITIALIZATION (MÁY CHỦ CỦA BẠN) ---
+// --- FIREBASE INITIALIZATION ---
 let app, auth, db, appId;
 if (!IS_PREVIEW_MODE) {
   try {
@@ -40,7 +38,7 @@ if (!IS_PREVIEW_MODE) {
   }
 }
 
-// --- CẬP NHẬT TOPICS VÀ SUBTOPICS DỰA TRÊN FILE PDF "LEAN TOPIC VOCAB" ---
+// --- TOPICS VÀ SUBTOPICS ---
 const TOPICS = [
   { id: 'general', name: 'General (Đa chủ đề)' },
   { id: 'education', name: 'Education (Giáo dục)' },
@@ -50,7 +48,8 @@ const TOPICS = [
   { id: 'health', name: 'Health (Sức khỏe)' },
   { id: 'work', name: 'Work (Công việc & Kinh tế)' },
   { id: 'crime', name: 'Crime (Tội phạm & Luật pháp)' },
-  { id: 'media', name: 'Media & Arts (Truyền thông & Nghệ thuật)' }
+  { id: 'media', name: 'Media & Arts (Truyền thông & Nghệ thuật)' },
+  { id: 'lifestyle', name: 'Lifestyle (Lối sống & Đời sống cá nhân)' }
 ];
 
 const SUBTOPICS = {
@@ -97,6 +96,13 @@ const SUBTOPICS = {
   media: [
     { id: 'media_news', name: 'Tin tức, Báo chí & Quảng cáo' },
     { id: 'media_arts', name: 'Nghệ thuật, Bảo tàng & Nghệ sĩ' }
+  ],
+  lifestyle: [
+    { id: 'life_stress', name: 'Áp lực & Cân bằng cuộc sống' },
+    { id: 'life_finance', name: 'Quản lý tài chính & Tiêu dùng' },
+    { id: 'life_family', name: 'Cấu trúc gia đình & Nơi ở' },
+    { id: 'life_environment', name: 'Môi trường sống' },
+    { id: 'life_personality', name: 'Tính cách & Hành vi con người' }
   ]
 };
 
@@ -105,14 +111,40 @@ const SAMPLE_PROMPTS = {
   env_climate: "Global warming is one of the most serious issues that the world is facing today. What are the causes of global warming and what measures can governments and individuals take to tackle the issue?",
   tech_ai: "Some people believe that artificial intelligence will eventually replace human workers in most industries. To what extent do you agree or disagree?",
   soc_culture: "The increase in international travel and business has led to a situation where people are adopting a single global culture. Do you think the advantages of this outweigh the disadvantages?",
-  health_gov: "Some people say that it is the responsibility of individuals to take care of their own health and diet. Others think that governments should make sure that their citizens are healthy. Discuss both views and give your opinion."
+  health_gov: "Some people say that it is the responsibility of individuals to take care of their own health and diet. Others think that governments should make sure that their citizens are healthy. Discuss both views and give your opinion.",
+  life_stress: "Stress: What are the factors that cause stress and how to cope with stress?"
 };
 
 // --- GEMINI API HELPERS ---
 const MODEL_NAME = "gemini-2.5-flash"; 
 
 async function fetchWithRetry(options, retries = 3) {
-  if (IS_PREVIEW_MODE) return { candidates: [{ content: { parts: [{ text: JSON.stringify({ error: "Lỗi kết nối AI khi đang trong chế độ Xem Trước (Preview Mode)." }) }] } }] }; 
+  if (IS_PREVIEW_MODE) {
+      // Mock Data for Preview Mode
+      const promptText = options.body.includes("Evaluate") ? "Evaluate" : options.body.includes("Guided") ? "Guided" : "Default";
+      return { 
+        candidates: [{ 
+            content: { 
+                parts: [{ 
+                    text: JSON.stringify({ 
+                        message: "Đây là dữ liệu ảo vì đang ở chế độ Preview Mode.",
+                        overallBand: 7.5, trScore: 7.0, ccScore: 8.0, lrScore: 7.0, graScore: 7.5,
+                        trComment: "Khá tốt.", ccComment: "Mượt mà.", lrComment: "Từ vựng ổn.", graComment: "Ngữ pháp tốt.",
+                        detailedCorrections: [], polishedEssay: "Mock polished essay.",
+                        centralIdea: "Mock Central Idea", view40: { title: "View 40", ideas: [{letter: 'E', category: 'Economic', keyword: 'Money'}] }, view60: { title: "View 60", ideas: [{letter: 'S', category: 'Social', keyword: 'People'}] },
+                        steps: [
+                            { id: "intro", title: "1. Mở bài", instruction: "Viết mở bài", structures: [{name: "Cách 1", hint: "Hint 1"}], requiredVocab: [{phrase: "environmental impact", meaning: "tác động môi trường"}] },
+                            { id: "body1", title: "2. Thân bài 1", instruction: "Viết body 1", structures: [{name: "Cách 1", hint: "Hint 1"}], requiredVocab: [{phrase: "detrimental effect", meaning: "ảnh hưởng xấu"}] },
+                            { id: "body2", title: "3. Thân bài 2", instruction: "Viết body 2", structures: [{name: "Cách 1", hint: "Hint 1"}], requiredVocab: [] },
+                            { id: "conclusion", title: "4. Kết bài", instruction: "Viết kết bài", structures: [{name: "Cách 1", hint: "Hint 1"}], requiredVocab: [] }
+                        ],
+                        options: [{ phrase: "environmental protection", band: "7.0" }, { phrase: "safeguarding the environment", band: "8.0" }]
+                    }) 
+                }] 
+            } 
+        }] 
+      }; 
+  }
 
   const apiKey = localStorage.getItem('gemini_api_key');
   if (!apiKey) throw new Error("MISSING_API_KEY");
@@ -185,6 +217,28 @@ const getFullSentenceDetails = (fullText, errorText, correctedText) => {
   };
 };
 
+// --- THUẬT TOÁN FUZZY MATCHING CHO TỪ VỰNG ---
+const checkVocabUsed = (text, phrase) => {
+    if (!text || !phrase) return false;
+    const normalize = (str) => str.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g,"").trim();
+    const textWords = normalize(text).split(/\s+/);
+    const phraseWords = normalize(phrase).split(/\s+/);
+    
+    // Kiểm tra xem phần lớn các từ khóa trong phrase có nằm trong text hay không (Bỏ qua 's', 'ed', 'ing')
+    return phraseWords.every(pw => {
+        if(pw.length <= 3) return textWords.includes(pw);
+        // Cắt đuôi để lấy gốc từ (stem)
+        let stem = pw;
+        if (pw.endsWith('ing')) stem = pw.slice(0, -3);
+        else if (pw.endsWith('ed')) stem = pw.slice(0, -2);
+        else if (pw.endsWith('es')) stem = pw.slice(0, -2);
+        else if (pw.endsWith('s')) stem = pw.slice(0, -1);
+        else stem = pw.substring(0, pw.length - 1);
+        
+        return textWords.some(tw => tw.includes(stem));
+    });
+};
+
 export default function App() {
   // --- AUTH & PERMISSION STATES ---
   const [user, setUser] = useState(IS_PREVIEW_MODE ? { email: 'tester@preview.com', uid: 'mock-user-123' } : null);
@@ -215,7 +269,7 @@ export default function App() {
   const [showCopilotMenu, setShowCopilotMenu] = useState(false);
   const [copilotOptions, setCopilotOptions] = useState([]);
   const [isCopilotLoading, setIsCopilotLoading] = useState(false);
-  const [copilotWordInfo, setCopilotWordInfo] = useState({ word: '', index: -1 });
+  const [copilotWordInfo, setCopilotWordInfo] = useState({ word: '', index: -1, length: 0 });
 
   // Sidebars & Modals
   const [selectedSample, setSelectedSample] = useState(null); 
@@ -229,7 +283,7 @@ export default function App() {
   const [showVocabModal, setShowVocabModal] = useState(false);
   const [showGuidedModal, setShowGuidedModal] = useState(false); 
 
-  // --- GUIDED WRITING WIZARD STATES ---
+  // Guided Writing Wizard
   const [guidedPlan, setGuidedPlan] = useState(null);
   const [guidedStepIndex, setGuidedStepIndex] = useState(0);
   const [guidedDrafts, setGuidedDrafts] = useState({ intro: '', body1: '', body2: '', conclusion: '' });
@@ -241,15 +295,14 @@ export default function App() {
   const [evaluationResult, setEvaluationResult] = useState(null);
   
   const [sampleEssays, setSampleEssays] = useState(IS_PREVIEW_MODE ? [
-    { id: 's1', topic: 'education', subtopic: 'edu_purpose', prompt: 'Some people believe that university education should be free for everyone...', content: 'This is a sample essay content for testing UI...' }
+    { id: 's1', topic: 'lifestyle', subtopic: 'life_stress', prompt: 'What are the factors that cause stress and how to cope with stress?', content: 'It is true that more people are suffering from stress than ever...' },
+    { id: 's2', topic: 'society', subtopic: 'soc_culture', prompt: 'Some people think that it is best to save money...', content: 'Opinions are divided on whether to save or spend money...' }
   ] : []);
   const [vocabularies, setVocabularies] = useState(IS_PREVIEW_MODE ? [
-    { id: 'v1', topicId: 'environment', subtopicId: 'env_pollution', phrase: 'environmental degradation', translation: 'sự suy thoái môi trường', examples: ['This policy aims to halt **environmental degradation**.', 'Rapid **environmental degradation** is a serious issue.'] },
-    { id: 'v2', topicId: 'general', phrase: 'a heated debate', translation: 'một cuộc tranh luận nảy lửa', examples: ['There is **a heated debate** over this matter.', ''] }
+    { id: 'v1', topicId: 'environment', subtopicId: 'env_pollution', phrase: 'environmental degradation', translation: 'sự suy thoái môi trường', examples: ['This policy aims to halt **environmental degradation**.', 'Rapid **environmental degradation** is a serious issue.'] }
   ] : []);
   const [evaluationsHistory, setEvaluationsHistory] = useState(IS_PREVIEW_MODE ? [
-    { id: 'ev1', prompt: 'Sample prompt 1', wordCount: 250, target: 'full', overallBand: 6.5, trScore: 6.0, ccScore: 6.0, lrScore: 7.0, graScore: 7.0, createdAt: new Date().toISOString() },
-    { id: 'ev2', prompt: 'Sample prompt 2', wordCount: 300, target: 'full', overallBand: 7.0, trScore: 7.0, ccScore: 7.0, lrScore: 7.0, graScore: 7.0, createdAt: new Date(Date.now() - 86400000).toISOString() }
+    { id: 'ev1', prompt: 'Sample prompt 1', wordCount: 250, target: 'full', overallBand: 6.5, trScore: 6.0, ccScore: 6.0, lrScore: 7.0, graScore: 7.0, createdAt: new Date().toISOString() }
   ] : []);
   
   const [mindMapData, setMindMapData] = useState(null);
@@ -312,71 +365,21 @@ export default function App() {
     setShowVocabSidebar(false);
   };
 
-  // --- LOGIN & WHITELIST CHECK ---
-  useEffect(() => {
-    if (IS_PREVIEW_MODE) return;
-    if (!auth) return;
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        try {
-          const q = query(collection(db, 'allowed_users'), where("email", "==", currentUser.email));
-          const querySnapshot = await getDocs(q);
-          if (!querySnapshot.empty && querySnapshot.docs[0].data().status === true) {
-            setIsAuthorized(true);
-          } else {
-            setIsAuthorized(false);
-          }
-        } catch (error) {
-          console.error("Whitelist check error:", error);
-          setIsAuthorized(false); 
-        }
-      } else {
-        setIsAuthorized(null);
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // --- CHECK API KEY ---
-  useEffect(() => {
-    if (isAuthorized === true) {
-      const key = localStorage.getItem('gemini_api_key');
-      if (!key) setShowApiKeyModal(true);
+  // Hàm Get Relevant Samples chung cho công nghệ RAG
+  const getRelevantSamples = (maxCount) => {
+    let relevantSamples = sampleEssays.filter(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
+    if (relevantSamples.length < maxCount && selectedSubtopic) {
+        const subtopicSamples = sampleEssays.filter(s => s.subtopic === selectedSubtopic && !relevantSamples.find(r => r.id === s.id));
+        relevantSamples = [...relevantSamples, ...subtopicSamples];
     }
-  }, [isAuthorized]);
+    if (relevantSamples.length < maxCount && selectedTopic) {
+        const topicSamples = sampleEssays.filter(s => s.topic === selectedTopic && !relevantSamples.find(r => r.id === s.id));
+        relevantSamples = [...relevantSamples, ...topicSamples];
+    }
+    return relevantSamples.slice(0, maxCount);
+  };
 
-  // --- FETCH USER DATA (FIREBASE THEO THỜI GIAN THỰC) ---
-  useEffect(() => {
-    if (IS_PREVIEW_MODE) return;
-    if (!user || isAuthorized !== true || !db || !appId) return;
-    
-    // Lấy thông tin Streak
-    const statsRef = doc(db, 'artifacts', appId, 'users', user.uid, 'user_info', 'stats');
-    const unsubscribeStats = onSnapshot(statsRef, (docSnap) => {
-       if (docSnap.exists()) {
-          setUserStats(docSnap.data());
-       }
-    });
-
-    const samplesRef = collection(db, 'artifacts', appId, 'users', user.uid, 'sample_essays');
-    const unsubscribeSamples = onSnapshot(samplesRef, (snapshot) => {
-      setSampleEssays(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-    
-    const vocabRef = collection(db, 'artifacts', appId, 'users', user.uid, 'vocabulary');
-    const unsubscribeVocab = onSnapshot(vocabRef, (snapshot) => {
-      setVocabularies(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-    
-    const evalsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'evaluations');
-    const unsubscribeEvals = onSnapshot(evalsRef, (snapshot) => {
-      setEvaluationsHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-    return () => { unsubscribeStats(); unsubscribeSamples(); unsubscribeVocab(); unsubscribeEvals(); };
-  }, [user, isAuthorized]);
-
-  // --- THUẬT TOÁN "CỬA SỔ TRƯỢT" (ROLLING WINDOW) KIỂM SOÁT RPM ---
+  // --- THUẬT TOÁN "CỬA SỔ TRƯỢT" KIỂM SOÁT RPM ---
   useEffect(() => {
     const timer = setInterval(() => {
       const now = Date.now();
@@ -386,10 +389,7 @@ export default function App() {
   }, []);
 
   const checkAndRecordApiCall = () => {
-    if (IS_PREVIEW_MODE) {
-        showToast("AI bị tắt trong chế độ Preview. Hãy thiết lập IS_PREVIEW_MODE = false để đẩy lên Môi trường thật", "info", 5000);
-        return false;
-    }
+    if (IS_PREVIEW_MODE) return true; // Cho qua ở chế độ preview
     
     if (apiTimestamps.length >= 15) {
       showToast("⚡ Năng lượng AI đã cạn. Hệ thống đang tự hồi phục, vui lòng đợi vài giây!", "error", 5000);
@@ -404,7 +404,7 @@ export default function App() {
     return true; 
   };
 
-  // --- ĐỒNG HỒ COOLDOWN CHO COPILOT @@ ---
+  // --- ĐỒNG HỒ COOLDOWN CHO COPILOT ---
   useEffect(() => {
     if (copilotCooldown > 0) {
        copilotCooldownRef.current = copilotCooldown;
@@ -459,26 +459,26 @@ export default function App() {
     }
   };
 
-  // --- TÍNH NĂNG AI COPILOT (GÕ TẮT @@) ---
+  // --- TÍNH NĂNG AI COPILOT (GÕ TẮT @từ vựng@) ---
   const handleKeyDown = (e) => {
     if ((e.key === 'Enter' || e.key === ' ' || e.key === 'Tab') && !showCopilotMenu) {
       if (!editorRef.current) return;
       const cursorPosition = editorRef.current.selectionEnd;
       const textBeforeCursor = essay.substring(0, cursorPosition);
       
-      // Đổi regex thành tìm cụm từ bị khóa bởi 2 dấu @ (vd: @bảo vệ môi trường@)
-      const match = textBeforeCursor.match(/(?:^|[\s\n])@([^@]+)@$/);
+      // Khóa 2 đầu: @từ tiếng việt@
+      const match = textBeforeCursor.match(/(?:^|\s)@([^@]+)@$/);
       
       if (match) {
          e.preventDefault(); 
          const vietnameseWord = match[1].trim(); 
-         const wordStartIndex = cursorPosition - match[0].length + (match[0].match(/^[\s\n]/) ? 1 : 0);
+         const wordStartIndex = cursorPosition - match[0].length + (match[0].startsWith(' ') ? 1 : 0);
          
          if (copilotUses <= 0) {
-            return showToast("Bạn đã hết quyền trợ giúp từ vựng cho bài này. Hãy cố gắng vận dụng vốn từ của bản thân!", "error", 5000);
+             return showToast("Bạn đã hết quyền trợ giúp từ vựng cho bài này. Hãy cố gắng vận dụng vốn từ của bản thân!", "error", 5000);
          }
          if (copilotCooldownRef.current > 0) {
-            return showToast(`⏳ Tính năng đang hồi chiêu. Vui lòng đợi ${copilotCooldownRef.current}s nữa.`, "info");
+             return showToast(`⏳ Tính năng đang hồi chiêu. Vui lòng đợi ${copilotCooldownRef.current}s nữa.`, "info");
          }
 
          triggerCopilot(vietnameseWord, wordStartIndex, match[0].trim().length);
@@ -509,7 +509,7 @@ export default function App() {
       setCopilotOptions(data.options || []);
       setShowCopilotMenu(true);
       setCopilotUses(prev => prev - 1); 
-      setCopilotCooldown(20); 
+      setCopilotCooldown(10); 
     } catch (error) {
       handleApiError(error);
     } finally {
@@ -533,32 +533,414 @@ export default function App() {
     }, 50);
   };
 
-  // --- THUẬT TOÁN KHỚP MỜ (FUZZY MATCHING) CHO TỪ VỰNG ---
-  const checkVocabUsed = (studentText, targetPhrase) => {
-      if (!studentText || !targetPhrase) return false;
-      const t = studentText.toLowerCase();
-      // Bỏ các từ phụ, ký hiệu và chữ viết tắt
-      let p = targetPhrase.toLowerCase().replace(/\b(sb|sth|someone|something|to|the|a|an|in|on|at|with|for)\b/g, '').replace(/[.…]/g, ' ').trim();
-      
-      if (t.includes(targetPhrase.toLowerCase())) return true; // Khớp 100% (Exact match)
+  // --- UI EFFECTS ---
+  useEffect(() => { setWordCount(essay.trim().split(/\s+/).filter(word => word.length > 0).length); }, [essay]);
+  useEffect(() => { if (promptRef.current) { promptRef.current.style.height = 'auto'; promptRef.current.style.height = `${promptRef.current.scrollHeight}px`; } }, [prompt]);
+  useEffect(() => {
+    if (isTimerRunning && timeRemaining > 0) timerRef.current = setInterval(() => setTimeRemaining(prev => prev - 1), 1000);
+    else if (timeRemaining === 0) { setIsTimerRunning(false); clearInterval(timerRef.current); }
+    return () => clearInterval(timerRef.current);
+  }, [isTimerRunning, timeRemaining]);
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isDraggingRef.current) return;
+      e.preventDefault();
+      const newWidth = document.body.clientWidth - e.clientX;
+      if (newWidth >= 320 && newWidth <= 800) setEvalWidth(newWidth);
+    };
+    const handleMouseUp = () => { if (isDraggingRef.current) { isDraggingRef.current = false; document.body.style.cursor = 'default'; } };
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => { document.removeEventListener('mousemove', handleMouseMove); document.removeEventListener('mouseup', handleMouseUp); };
+  }, []);
 
-      // Lấy các từ khóa chính (dài hơn 3 ký tự)
-      const mainWords = p.split(/\s+/).filter(w => w.length > 3);
-      if (mainWords.length === 0) return t.includes(targetPhrase.toLowerCase()); 
+  const startDrag = (e) => { isDraggingRef.current = true; document.body.style.cursor = 'col-resize'; };
 
-      // Rút gọn lấy gốc từ (4-5 ký tự đầu) để bỏ qua s, es, ed, ing...
-      const allExist = mainWords.every(word => {
-          // Lấy gốc từ: Từ >= 6 chữ lấy 5 ký tự đầu, Từ < 6 chữ lấy 4 ký tự đầu
-          const root = word.length > 5 ? word.substring(0, 5) : word.substring(0, 4);
-          return t.includes(root);
-      });
+  useEffect(() => {
+    const handleMouseUp = (e) => {
+      if (e.target.closest('#selection-popup') || e.target.closest('.locate-btn') || showApiKeyModal || showCopilotMenu) return;
+      setTimeout(() => {
+        let text = '';
+        if (document.activeElement && document.activeElement.tagName === 'TEXTAREA') {
+          const start = document.activeElement.selectionStart;
+          const end = document.activeElement.selectionEnd;
+          if (start !== undefined && end !== undefined && start !== end) text = document.activeElement.value.substring(start, end).trim();
+        } else text = window.getSelection().toString().trim();
 
-      return allExist;
+        if (text && text.length > 0 && text.length < 100 && text.split(' ').length <= 15) {
+          setSelectionPopup({ show: true, text: text, x: e.clientX, y: e.clientY - 60 });
+        } else setSelectionPopup(prev => ({ ...prev, show: false }));
+      }, 50);
+    };
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => document.removeEventListener('mouseup', handleMouseUp);
+  }, [showApiKeyModal, showCopilotMenu]);
+
+  // --- ACTIONS ---
+  const handleOpenReviewVocab = () => {
+    setNewVocab({ topic: selectedTopic || '', subtopic: selectedSubtopic || '', phrase: selectionPopup.text, basePhrase: '', translation: '', example1: '', example2: '' });
+    setVocabStep('init'); setShowVocabModal(true); setSelectionPopup({ show: false, text: '', x: 0, y: 0 });
+    window.getSelection().removeAllRanges();
   };
 
-  // --- STANDARD HELPERS ---
+  const handleAnalyzeVocab = async () => {
+    if (!newVocab.topic) return showToast("Vui lòng chọn Chủ đề để AI hiểu ngữ cảnh!", "error");
+    if (!newVocab.phrase.trim()) return showToast("Vui lòng nhập từ vựng cần phân tích!", "error");
+    if (!checkAndRecordApiCall()) return;
+
+    setVocabStep('analyzing');
+    const topicName = TOPICS.find(t => t.id === newVocab.topic)?.name || '';
+    const subtopicName = newVocab.subtopic ? (SUBTOPICS[newVocab.topic]?.find(s => s.id === newVocab.subtopic)?.name || '') : '';
+    const contextTopic = subtopicName ? `${topicName} (specifically ${subtopicName})` : topicName;
+    
+    const systemInstruction = `Analyze the phrase: "${newVocab.phrase}" in the context of the IELTS topic "${contextTopic}". 
+    CRITICAL INSTRUCTION: 1. Extract BASE FORM. 2. Provide 2 VERY SHORT examples (Band 7.5+, Max 15 words). 3. Wrap target vocab in <b> tags.
+    Return strictly JSON: {"basePhrase": "...", "translation": "...", "example1": "...", "example2": "..."}`;
+    
+    try {
+      const result = await fetchWithRetry({
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: "Analyze vocab." }] }], systemInstruction: { parts: [{ text: systemInstruction }] }, generationConfig: { responseMimeType: "application/json" } })
+      });
+      const aiData = parseGeminiResponse(result.candidates[0].content.parts[0].text);
+      setNewVocab(prev => ({ ...prev, basePhrase: aiData.basePhrase || prev.phrase, translation: aiData.translation || '', example1: aiData.example1 || '', example2: aiData.example2 || '' }));
+      setVocabStep('reviewed');
+    } catch (error) { handleApiError(error); setVocabStep('init'); }
+  };
+
+  const handleConfirmSaveVocab = async () => {
+    const targetPhrase = newVocab.basePhrase || newVocab.phrase;
+    if (!targetPhrase) return showToast("Vui lòng nhập từ vựng!", "error");
+    
+    try {
+      if (newVocab.id) {
+          if (IS_PREVIEW_MODE) {
+              setVocabularies(prev => prev.map(v => v.id === newVocab.id ? { ...v, topicId: newVocab.topic || '', subtopicId: newVocab.subtopic || '', phrase: targetPhrase, translation: newVocab.translation || '', examples: [newVocab.example1 || '', newVocab.example2 || ''] } : v));
+              showToast("Đã cập nhật từ vựng (MOCK)!", "success");
+          } else {
+              await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'vocabulary', newVocab.id), { topicId: newVocab.topic || '', subtopicId: newVocab.subtopic || '', phrase: targetPhrase, translation: newVocab.translation || '', examples: [newVocab.example1 || '', newVocab.example2 || ''] });
+              showToast("Đã cập nhật từ vựng!", "success");
+          }
+      } else {
+          if (IS_PREVIEW_MODE) {
+              setVocabularies(prev => [{ id: Date.now().toString(), topicId: newVocab.topic || '', subtopicId: newVocab.subtopic || '', phrase: targetPhrase, translation: newVocab.translation || '', examples: [newVocab.example1 || '', newVocab.example2 || ''], createdAt: new Date().toISOString() }, ...prev]);
+              showToast("Đã lưu từ vựng vào kho (MOCK)!", "success");
+          } else {
+              await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'vocabulary'), { topicId: newVocab.topic || '', subtopicId: newVocab.subtopic || '', phrase: targetPhrase, translation: newVocab.translation || '', examples: [newVocab.example1 || '', newVocab.example2 || ''], createdAt: new Date().toISOString() });
+              showToast("Đã lưu từ vựng vào kho!", "success");
+          }
+      }
+      setShowVocabModal(false);
+    } catch (error) { showToast("Lỗi lưu trữ: " + error.message, "error"); }
+  };
+
+  const handleOpenParaphraseFromSelection = () => {
+    setParaphraseInput(selectionPopup.text); setParaphraseResult(null); setShowParaphraseModal(true);
+    setSelectionPopup({ ...selectionPopup, show: false }); window.getSelection().removeAllRanges();
+  };
+
+  const handleParaphraseFromFooter = () => {
+    if (!editorRef.current) return;
+    const selectedText = essay.substring(editorRef.current.selectionStart, editorRef.current.selectionEnd);
+    if (!selectedText || selectedText.trim().length < 5) return showToast("Vui lòng bôi đen một câu trong bài viết.", "error");
+    setParaphraseInput(selectedText.trim()); setParaphraseResult(null); setShowParaphraseModal(true);
+  };
+
+  const handleGeneratePrompt = () => {
+    const randomPrompt = sampleEssays.length > 0 ? sampleEssays[Math.floor(Math.random() * sampleEssays.length)].prompt : (selectedSubtopic && SAMPLE_PROMPTS[selectedSubtopic] ? SAMPLE_PROMPTS[selectedSubtopic] : "Some people think that technology is driving people apart, while others believe it is bringing people closer together. Discuss both views and give your opinion.");
+    setPrompt(randomPrompt); setEssay(''); setTimeRemaining(40 * 60); setIsTimerRunning(false); setEvaluationResult(null); closeAllSidebars();
+    setCopilotUses(3); setIsGuidedDraft(false); 
+  };
+
+  const handleSuggestIdeas = async () => {
+    if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước.", "error");
+    setShowIdeasModal(true); if (mindMapData) return; 
+    if (!checkAndRecordApiCall()) { setShowIdeasModal(false); return; } 
+    
+    setIsGeneratingIdeas(true);
+
+    const relevantSamples = getRelevantSamples(3);
+    let referenceContext = "";
+    if (relevantSamples.length > 0) {
+        referenceContext = `\n\nREFERENCE ESSAYS TO BASE IDEAS ON:\n${relevantSamples.map((s, i) => `Essay ${i+1}:\n${s.content}`).join('\n\n')}\n\nCRITICAL INSTRUCTION: Analyze the Reference Essays provided above. Extract the core arguments and ideas from them to build this EGOSFI mind map. Do not invent completely new ideas if the reference essays already cover the topic well.`;
+    }
+
+    const systemInstruction = `You are an IELTS Writing Task 2 expert. Generate an EGOSFI mind map for this prompt: "${prompt}".
+    Structure ideas into View 40 (opposing) and View 60 (supporting). Use E, G, O, S, F, I categories.${referenceContext}
+    Return strictly JSON: { "centralIdea": "...", "view40": {"title": "...", "ideas": [{"letter": "S", "category": "...", "keyword": "...", "explanation": "..."}]}, "view60": {...} }`;
+    
+    try {
+      const result = await fetchWithRetry({
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: "Generate EGOSFI mind map." }] }], systemInstruction: { parts: [{ text: systemInstruction }] }, generationConfig: { responseMimeType: "application/json" } })
+      });
+      setMindMapData(parseGeminiResponse(result.candidates[0].content.parts[0].text));
+    } catch (error) { handleApiError(error); setShowIdeasModal(false); } finally { setIsGeneratingIdeas(false); }
+  };
+
+  const handleSuggestPromptVocab = async () => { 
+    if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước.", "error");
+    closeAllSidebars(); setShowVocabSidebar(true); if (suggestedPromptVocabs.length > 0) return; 
+    if (!checkAndRecordApiCall()) { setShowVocabSidebar(false); return; } 
+    
+    setIsGeneratingPromptVocabs(true);
+
+    const relevantSamples = getRelevantSamples(5);
+    let referenceContext = "";
+    if (relevantSamples.length > 0) {
+        referenceContext = `\n\nREFERENCE ESSAYS TO EXTRACT VOCABULARY FROM:\n${relevantSamples.map((s, i) => `Essay ${i+1}:\n${s.content}`).join('\n\n')}\n\nCRITICAL INSTRUCTION: You MUST extract the vocabulary phrases directly from the text of the Reference Essays provided above. Do not invent new phrases if there are good ones in the text.`;
+    }
+
+    const systemInstruction = `Suggest exactly 10 academic phrases (Band 7.5+) for this prompt: "${prompt}".${referenceContext}
+    Return strictly JSON array of objects with {phrase, meaning, source}.`;
+    
+    try {
+      const result = await fetchWithRetry({
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: "Suggest vocabulary." }] }], systemInstruction: { parts: [{ text: systemInstruction }] }, generationConfig: { responseMimeType: "application/json" } })
+      });
+      setSuggestedPromptVocabs(parseGeminiResponse(result.candidates[0].content.parts[0].text));
+    } catch (error) { handleApiError(error); setShowVocabSidebar(false); } finally { setIsGeneratingPromptVocabs(false); }
+  };
+
+  const handleStartGuidedWriting = async () => {
+    if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước!", "error");
+    setShowGuidedModal(true); 
+    if (!checkAndRecordApiCall()) { setShowGuidedModal(false); return; } 
+
+    setIsGeneratingGuide(true);
+    setGuidedPlan(null); setGuidedDrafts({ intro: '', body1: '', body2: '', conclusion: '' }); setGuidedStepIndex(0);
+
+    const relevantSamples = getRelevantSamples(3);
+    let referenceContext = "";
+    if (relevantSamples.length > 0) {
+        referenceContext = `\n\nREFERENCE ESSAYS TO EXTRACT VOCABULARY AND IDEAS FROM:\n${relevantSamples.map((s, i) => `Essay ${i+1}:\n${s.content}`).join('\n\n')}\n\nCRITICAL INSTRUCTION: You MUST base the suggested structures and extract the "requiredVocab" collocations directly from the Reference Essays provided above. Help the student replicate the flow and wording of these 9.0 essays.`;
+    }
+
+    const systemInstruction = `You are an expert IELTS Writing Tutor. The student needs to write an essay for this prompt: "${prompt}".${referenceContext}
+    Create a 4-step Guided Writing Plan. For Intro, Body 1 and Body 2, provide EXACTLY 3 natural, precise, and context-appropriate collocations (Band 7.5+) extracted from references that the student should try to use.
+    
+    CRITICAL RULES:
+    1. DO NOT use obscure "big words". Prioritize natural phrasing.
+    2. Provide 2 DIFFERENT grammatical structures for each step.
+    
+    Return STRICTLY JSON matching this structure:
+    {
+      "steps": [
+        {
+          "id": "intro", "title": "1. Mở bài", 
+          "instruction": "Paraphrase đề bài và đưa ra Thesis Statement.", 
+          "structures": [{"name": "Cấu trúc 1", "hint": "Gợi ý..."}, {"name": "Cấu trúc 2", "hint": "Gợi ý..."}],
+          "requiredVocab": [{"phrase": "collocation 1", "meaning": "nghĩa"}, {"phrase": "collocation 2", "meaning": "nghĩa"}, {"phrase": "collocation 3", "meaning": "nghĩa"}]
+        },
+        {
+          "id": "body1", "title": "2. Thân bài 1", 
+          "instruction": "Viết đoạn Body 1. Hãy cố gắng áp dụng các cụm từ đắt giá dưới đây.", 
+          "structures": [{"name": "Cấu trúc 1", "hint": "..."}, {"name": "Cấu trúc 2", "hint": "..."}],
+          "requiredVocab": [{"phrase": "...", "meaning": "..."}, {"phrase": "...", "meaning": "..."}, {"phrase": "...", "meaning": "..."}]
+        },
+        {
+          "id": "body2", "title": "3. Thân bài 2", 
+          "instruction": "Viết đoạn Body 2. Hãy cố gắng áp dụng các cụm từ đắt giá dưới đây.", 
+          "structures": [{"name": "Cấu trúc 1", "hint": "..."}, {"name": "Cấu trúc 2", "hint": "..."}],
+          "requiredVocab": [{"phrase": "...", "meaning": "..."}, {"phrase": "...", "meaning": "..."}, {"phrase": "...", "meaning": "..."}]
+        },
+        {
+          "id": "conclusion", "title": "4. Kết bài", 
+          "instruction": "Tóm tắt và khẳng định lại quan điểm.", 
+          "structures": [{"name": "Cấu trúc 1", "hint": "..."}, {"name": "Cấu trúc 2", "hint": "..."}],
+          "requiredVocab": []
+        }
+      ]
+    }`;
+
+    try {
+      const result = await fetchWithRetry({
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: "Generate Guided Writing Plan" }] }], systemInstruction: { parts: [{ text: systemInstruction }] }, generationConfig: { responseMimeType: "application/json" } })
+      });
+      setGuidedPlan(parseGeminiResponse(result.candidates[0].content.parts[0].text));
+    } catch (error) { handleApiError(error); setShowGuidedModal(false); } finally { setIsGeneratingGuide(false); }
+  };
+
+  const handleParaphrase = async () => { 
+    if (!paraphraseInput.trim()) return;
+    if (!checkAndRecordApiCall()) return; 
+    
+    setIsParaphrasing(true); setParaphraseResult(null);
+    const systemPrompt = `Paraphrase the following sentence in 2 styles: Band 6.5 and Band 7.5+. Input: "${paraphraseInput}". Return JSON: { "band65": "...", "band75": "..." }.`;
+    try {
+      const result = await fetchWithRetry({
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: systemPrompt }] }], generationConfig: { responseMimeType: "application/json" } })
+      });
+      setParaphraseResult(parseGeminiResponse(result.candidates[0].content.parts[0].text));
+    } catch (error) { handleApiError(error); } finally { setIsParaphrasing(false); }
+  };
+
+  const handleEvaluate = async () => {
+    const minWords = writingTarget === 'full' ? 150 : 50;
+    if (wordCount < 30) return showToast("Vui lòng viết ít nhất 30 từ để AI có thể đánh giá.", "error");
+    
+    const meetsStreakReq = wordCount >= minWords;
+    if (!meetsStreakReq) {
+       showToast(`Bài viết của bạn chưa đủ độ dài (${minWords} từ) để được cộng chuỗi Streak. AI vẫn sẽ chấm điểm nhé!`, "info", 6000);
+    }
+
+    if (!checkAndRecordApiCall()) return;
+
+    setIsEvaluating(true); setIsTimerRunning(false); setActiveCommentIndex(null); setCorrectionAttempts({});
+    setCopilotUses(3); 
+    
+    let targetInstruction = writingTarget === 'full' ? `Grade the FULL ESSAY.` : writingTarget === 'intro_conc' ? `The student is ONLY writing the INTRODUCTION and CONCLUSION. Evaluate based on Paraphrasing and Thesis.` : `The student is ONLY writing BODY PARAGRAPH(S). Evaluate based on flow, coherence and topic sentences.`;
+    
+    // RAG Logic: Lấy tối đa 5 bài mẫu
+    const relevantSamples = getRelevantSamples(5);
+    let referenceContext = "";
+    if (relevantSamples.length > 0) {
+        referenceContext = `\n\nREFERENCE ESSAYS (BAND 9.0 STANDARD):\n${relevantSamples.map((s, i) => `Essay ${i+1}:\n${s.content}`).join('\n\n')}\n\nCRITICAL SEPARATION RULE FOR TASK RESPONSE (TR):
+        The reference essays are provided ONLY to calibrate your standard for Vocabulary (LR), Grammar (GRA), and Cohesion (CC). 
+        DO NOT force the student to use the same ideas or opinions as the reference essays. Evaluate the student's Task Response based solely on how logically they develop THEIR OWN ideas, even if they completely contradict the reference essays.
+        For CC and LR, DO NOT penalize natural phrasing or implicit cohesion if it matches the high-level style of the reference essays.`;
+    }
+
+    let systemInstruction = `You are a strict and expert IELTS Writing Task 2 examiner. 
+    1. SCORING CRITERIA: Grade the essay based STRICTLY on the official IELTS Writing Task 2 Band Descriptors (Public Version).
+    2. SCORING RULE: Calculate the average of the 4 criteria. Round down to the nearest 0.5. ${referenceContext}
+    3. TARGET: ${targetInstruction} Provide specific comments and detailedCorrections: [{original, corrected, explanation}].
+    4. Return strictly JSON: { "overallBand": 6.5, "trScore": 6.0, "trComment": "...", "ccScore": 7.0, "ccComment": "...", "lrScore": 6.0, "lrComment": "...", "graScore": 6.0, "graComment": "...", "detailedCorrections": [...], "polishedEssay": "Band 8.0 polished version of what student wrote." }`;
+    
+    try {
+      const result = await fetchWithRetry({
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: `Prompt: ${prompt}\nStudent Text (${writingTarget}): ${essay}` }] }], systemInstruction: { parts: [{ text: systemInstruction }] }, generationConfig: { responseMimeType: "application/json" } })
+      });
+      const evaluation = parseGeminiResponse(result.candidates[0].content.parts[0].text);
+      setEvaluationResult(evaluation);
+      
+      if (!IS_PREVIEW_MODE) {
+         await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'evaluations'), { prompt, wordCount, target: writingTarget, overallBand: evaluation.overallBand, createdAt: new Date().toISOString() });
+      } else {
+         setEvaluationsHistory(prev => [{ id: Date.now().toString(), prompt, wordCount, target: writingTarget, overallBand: evaluation.overallBand, trScore: evaluation.trScore, ccScore: evaluation.ccScore, lrScore: evaluation.lrScore, graScore: evaluation.graScore, createdAt: new Date().toISOString() }, ...prev]);
+      }
+
+      if (meetsStreakReq) {
+         const today = new Date().toLocaleDateString('en-CA'); 
+         const yesterdayDate = new Date();
+         yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+         const yesterday = yesterdayDate.toLocaleDateString('en-CA');
+
+         let newStreak = userStats.currentStreak || 0;
+         if (userStats.lastWriteDate !== today) {
+            if (userStats.lastWriteDate === yesterday) {
+               newStreak += 1;
+            } else {
+               newStreak = 1;
+            }
+         }
+         
+         const newLongest = Math.max(userStats.longestStreak || 0, newStreak);
+         const newStats = { currentStreak: newStreak, longestStreak: newLongest, lastWriteDate: today };
+
+         if (!IS_PREVIEW_MODE) {
+            await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'user_info', 'stats'), newStats);
+         } else {
+            setUserStats(newStats);
+         }
+
+         if (userStats.lastWriteDate !== today) {
+            showToast(`🔥 Tuyệt vời! Bạn đã hoàn thành bài tập. Streak: ${newStreak} ngày liên tiếp!`, "success", 5000);
+         }
+      }
+
+    } catch (error) { handleApiError(error); } finally { setIsEvaluating(false); }
+  };
+
+  const handleBatchCheckCorrections = async () => {
+    const pendingChecks = Object.entries(correctionAttempts)
+      .filter(([idx, attempt]) => attempt.text && attempt.text.trim() && !attempt.reviewed)
+      .map(([idx, attempt]) => ({
+          idx: idx,
+          originalError: evaluationResult.detailedCorrections[idx].original,
+          studentRewrite: attempt.text.trim()
+      }));
+
+    if (pendingChecks.length === 0) {
+       return showToast("Vui lòng viết lại ít nhất 1 câu lỗi trước khi kiểm tra.", "info");
+    }
+
+    if (!checkAndRecordApiCall()) return;
+
+    setIsBatchChecking(true);
+    
+    const batchPayload = pendingChecks.map(p => ({
+        id: p.idx,
+        error: p.originalError,
+        rewrite: p.studentRewrite
+    }));
+
+    const systemPrompt = `You are an IELTS teacher. Evaluate a batch of student's rewritten sentences.
+    Input format: an array of objects {id, error, rewrite}.
+    For each rewrite, check if it successfully fixes the original error in grammatical/lexical context.
+    Return strictly JSON: { "results": [ { "id": "...", "isCorrect": true/false, "feedback": "Brief feedback max 15 words" } ] }`;
+
+    try {
+        const result = await fetchWithRetry({
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                contents: [{ parts: [{ text: JSON.stringify(batchPayload) }] }], 
+                systemInstruction: { parts: [{ text: systemPrompt }] }, 
+                generationConfig: { responseMimeType: "application/json" } 
+            })
+        });
+        
+        const aiReview = parseGeminiResponse(result.candidates[0].content.parts[0].text);
+        
+        setCorrectionAttempts(prev => {
+            const newState = { ...prev };
+            aiReview.results.forEach(res => {
+                if (newState[res.id]) {
+                    newState[res.id] = {
+                        ...newState[res.id],
+                        reviewed: true,
+                        isCorrect: res.isCorrect,
+                        feedback: res.feedback,
+                        showAnswer: true
+                    };
+                }
+            });
+            return newState;
+        });
+
+        showToast(`Tuyệt vời! Đã chấm xong ${aiReview.results.length} câu ⚡`, "success", 5000);
+
+    } catch (e) { 
+        handleApiError(e); 
+    } finally { 
+        setIsBatchChecking(false); 
+    }
+  };
+
+  const handleStartQuiz = async () => {
+    const filteredVocabs = vocabularies.filter(v => (filterQuizTopic ? v.topicId === filterQuizTopic : true) && (filterQuizSubtopic ? v.subtopicId === filterQuizSubtopic : true));
+    if (filteredVocabs.length < 1) return showToast("Không có từ vựng nào. Hãy thêm từ mới nhé!", "error");
+    if (!checkAndRecordApiCall()) return; 
+
+    setIsGeneratingQuiz(true); setQuizAnswers({}); setQuizResults(null); setRevealedHints({});
+    const selectedVocabs = [...filteredVocabs].sort(() => 0.5 - Math.random()).slice(0, 10).map(v => v.basePhrase || v.phrase);
+    const systemInstruction = `Create a fill-in-the-blank exercise for exactly these words: [${selectedVocabs.join(', ')}]. 
+    Return strictly JSON: { "questions": [ { "question": "Sentence with ___", "answer": "exact word", "hint": "Smart hint" } ] }.`;
+    try {
+      const result = await fetchWithRetry({
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: "Generate Quiz" }] }], systemInstruction: { parts: [{ text: systemInstruction }] }, generationConfig: { responseMimeType: "application/json" } })
+      });
+      const aiData = parseGeminiResponse(result.candidates[0].content.parts[0].text);
+      setQuizData(aiData.questions || []); setWordBank((aiData.questions || []).map(q => q.answer).sort(() => 0.5 - Math.random())); setQuizStep('playing');
+    } catch (error) { handleApiError(error); } finally { setIsGeneratingQuiz(false); }
+  };
+
   const formatTime = (seconds) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
-  
   const handleLocateError = (originalText) => {
     if (!editorRef.current) return;
     const index = essay.indexOf(originalText);
@@ -632,540 +1014,6 @@ export default function App() {
     } catch (e) { showToast("Dữ liệu JSON không hợp lệ.", "error"); } finally { setIsRestoring(false); }
   };
 
-  // --- UI EFFECTS ---
-  useEffect(() => { setWordCount(essay.trim().split(/\s+/).filter(word => word.length > 0).length); }, [essay]);
-  useEffect(() => { if (promptRef.current) { promptRef.current.style.height = 'auto'; promptRef.current.style.height = `${promptRef.current.scrollHeight}px`; } }, [prompt]);
-  useEffect(() => {
-    if (isTimerRunning && timeRemaining > 0) timerRef.current = setInterval(() => setTimeRemaining(prev => prev - 1), 1000);
-    else if (timeRemaining === 0) { setIsTimerRunning(false); clearInterval(timerRef.current); }
-    return () => clearInterval(timerRef.current);
-  }, [isTimerRunning, timeRemaining]);
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      if (!isDraggingRef.current) return;
-      e.preventDefault();
-      const newWidth = document.body.clientWidth - e.clientX;
-      if (newWidth >= 320 && newWidth <= 800) setEvalWidth(newWidth);
-    };
-    const handleMouseUp = () => { if (isDraggingRef.current) { isDraggingRef.current = false; document.body.style.cursor = 'default'; } };
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    return () => { document.removeEventListener('mousemove', handleMouseMove); document.removeEventListener('mouseup', handleMouseUp); };
-  }, []);
-
-  const startDrag = (e) => { isDraggingRef.current = true; document.body.style.cursor = 'col-resize'; };
-
-  useEffect(() => {
-    const handleMouseUp = (e) => {
-      if (e.target.closest('#selection-popup') || e.target.closest('.locate-btn') || showApiKeyModal || showCopilotMenu) return;
-      setTimeout(() => {
-        let text = '';
-        if (document.activeElement && document.activeElement.tagName === 'TEXTAREA') {
-          const start = document.activeElement.selectionStart;
-          const end = document.activeElement.selectionEnd;
-          if (start !== undefined && end !== undefined && start !== end) text = document.activeElement.value.substring(start, end).trim();
-        } else text = window.getSelection().toString().trim();
-
-        if (text && text.length > 0 && text.length < 100 && text.split(' ').length <= 15) {
-          setSelectionPopup({ show: true, text: text, x: e.clientX, y: e.clientY - 60 });
-        } else setSelectionPopup(prev => ({ ...prev, show: false }));
-      }, 50);
-    };
-    document.addEventListener('mouseup', handleMouseUp);
-    return () => document.removeEventListener('mouseup', handleMouseUp);
-  }, [showApiKeyModal, showCopilotMenu]);
-
-
-  // --- ACTIONS WITH ERROR HANDLING ---
-  const handleOpenReviewVocab = () => {
-    setNewVocab({ topic: selectedTopic || '', subtopic: selectedSubtopic || '', phrase: selectionPopup.text, basePhrase: '', translation: '', example1: '', example2: '' });
-    setVocabStep('init'); setShowVocabModal(true); setSelectionPopup({ show: false, text: '', x: 0, y: 0 });
-    window.getSelection().removeAllRanges();
-  };
-
-  const handleAnalyzeVocab = async () => {
-    if (!newVocab.topic) return showToast("Vui lòng chọn Chủ đề để AI hiểu ngữ cảnh!", "error");
-    if (!newVocab.phrase.trim()) return showToast("Vui lòng nhập từ vựng cần phân tích!", "error");
-    if (!checkAndRecordApiCall()) return;
-
-    setVocabStep('analyzing');
-    const topicName = TOPICS.find(t => t.id === newVocab.topic)?.name || '';
-    const subtopicName = newVocab.subtopic ? (SUBTOPICS[newVocab.topic]?.find(s => s.id === newVocab.subtopic)?.name || '') : '';
-    const contextTopic = subtopicName ? `${topicName} (specifically ${subtopicName})` : topicName;
-    
-    const systemInstruction = `Analyze the phrase: "${newVocab.phrase}" in the context of the IELTS topic "${contextTopic}". 
-    CRITICAL INSTRUCTION: 1. Extract BASE FORM. 2. Provide 2 VERY SHORT examples (Band 7.5+, Max 15 words). 3. Wrap target vocab in <b> tags.
-    Return strictly JSON: {"basePhrase": "...", "translation": "...", "example1": "...", "example2": "..."}`;
-    
-    try {
-      const result = await fetchWithRetry({
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: "Analyze vocab." }] }], systemInstruction: { parts: [{ text: systemInstruction }] }, generationConfig: { responseMimeType: "application/json" } })
-      });
-      const aiData = parseGeminiResponse(result.candidates[0].content.parts[0].text);
-      setNewVocab(prev => ({ ...prev, basePhrase: aiData.basePhrase || prev.phrase, translation: aiData.translation || '', example1: aiData.example1 || '', example2: aiData.example2 || '' }));
-      setVocabStep('reviewed');
-    } catch (error) { handleApiError(error); setVocabStep('init'); }
-  };
-
-  const handleConfirmSaveVocab = async () => {
-    const targetPhrase = newVocab.basePhrase || newVocab.phrase;
-    if (!targetPhrase) return showToast("Vui lòng nhập từ vựng!", "error");
-    const isDuplicate = vocabularies.some(v => (v.phrase || '').toLowerCase().trim() === targetPhrase.toLowerCase().trim() && v.id !== newVocab.id);
-    if (isDuplicate) return showToast(`Từ vựng đã tồn tại!`, "error");
-
-    try {
-      if (newVocab.id) {
-        if (IS_PREVIEW_MODE) {
-            setVocabularies(prev => prev.map(v => v.id === newVocab.id ? { ...v, topicId: newVocab.topic || '', subtopicId: newVocab.subtopic || '', phrase: targetPhrase, translation: newVocab.translation || '', examples: [newVocab.example1 || '', newVocab.example2 || ''] } : v));
-            showToast("Đã cập nhật từ vựng (MOCK)!", "success");
-        } else {
-            await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'vocabulary', newVocab.id), { topicId: newVocab.topic || '', subtopicId: newVocab.subtopic || '', phrase: targetPhrase, translation: newVocab.translation || '', examples: [newVocab.example1 || '', newVocab.example2 || ''] });
-            showToast("Đã cập nhật từ vựng!", "success");
-        }
-      } else {
-        if (IS_PREVIEW_MODE) {
-            setVocabularies(prev => [{ id: Date.now().toString(), topicId: newVocab.topic || '', subtopicId: newVocab.subtopic || '', phrase: targetPhrase, translation: newVocab.translation || '', examples: [newVocab.example1 || '', newVocab.example2 || ''], createdAt: new Date().toISOString() }, ...prev]);
-            showToast("Đã lưu từ vựng vào kho (MOCK)!", "success");
-        } else {
-            await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'vocabulary'), { topicId: newVocab.topic || '', subtopicId: newVocab.subtopic || '', phrase: targetPhrase, translation: newVocab.translation || '', examples: [newVocab.example1 || '', newVocab.example2 || ''], createdAt: new Date().toISOString() });
-            showToast("Đã lưu từ vựng vào kho!", "success");
-        }
-      }
-      setShowVocabModal(false);
-    } catch (error) { showToast("Lỗi lưu trữ: " + error.message, "error"); }
-  };
-
-  const handleOpenParaphraseFromSelection = () => {
-    setParaphraseInput(selectionPopup.text); setParaphraseResult(null); setShowParaphraseModal(true);
-    setSelectionPopup({ ...selectionPopup, show: false }); window.getSelection().removeAllRanges();
-  };
-
-  const handleParaphraseFromFooter = () => {
-    if (!editorRef.current) return;
-    const selectedText = essay.substring(editorRef.current.selectionStart, editorRef.current.selectionEnd);
-    if (!selectedText || selectedText.trim().length < 5) return showToast("Vui lòng bôi đen một câu trong bài viết.", "error");
-    setParaphraseInput(selectedText.trim()); setParaphraseResult(null); setShowParaphraseModal(true);
-  };
-
-  const handleGeneratePrompt = () => {
-    const randomPrompt = sampleEssays.length > 0 ? sampleEssays[Math.floor(Math.random() * sampleEssays.length)].prompt : (selectedSubtopic && SAMPLE_PROMPTS[selectedSubtopic] ? SAMPLE_PROMPTS[selectedSubtopic] : "Some people think that technology is driving people apart, while others believe it is bringing people closer together. Discuss both views and give your opinion.");
-    setPrompt(randomPrompt); setEssay(''); setTimeRemaining(40 * 60); setIsTimerRunning(false); setEvaluationResult(null); closeAllSidebars();
-    setCopilotUses(3); setIsGuidedDraft(false); 
-  };
-
-  const handleSuggestIdeas = async () => {
-    if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước.", "error");
-    setShowIdeasModal(true); if (mindMapData) return; 
-    if (!checkAndRecordApiCall()) { setShowIdeasModal(false); return; } 
-    
-    setIsGeneratingIdeas(true);
-
-    // --- RAG: TÌM BÀI MẪU THAM KHẢO ---
-    let referenceContext = "";
-    let matchedSamples = sampleEssays.filter(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
-    
-    // Nếu thiếu, quét rộng ra bài cùng Subtopic
-    if (matchedSamples.length < 3 && selectedSubtopic) {
-        const subtopicSamples = sampleEssays.filter(s => s.subtopic === selectedSubtopic && !matchedSamples.includes(s));
-        matchedSamples = [...matchedSamples, ...subtopicSamples];
-    }
-    
-    // Lấy tối đa 3 bài
-    const topSamples = matchedSamples.slice(0, 3);
-    
-    if (topSamples.length > 0) {
-        referenceContext = `\n\nI have provided some high-quality reference essays below. PLEASE EXTRACT AND SYNTHESIZE the main arguments and ideas from THESE REFERENCE ESSAYS to build your EGOSFI mind map, rather than generating generic ideas.\n`;
-        topSamples.forEach((s, idx) => {
-            referenceContext += `--- Reference Essay ${idx + 1} ---\nPrompt: ${s.prompt}\nEssay:\n${s.content}\n\n`;
-        });
-    }
-
-    const systemInstruction = `You are an IELTS Writing Task 2 expert. Generate an EGOSFI mind map for this prompt: "${prompt}".
-    Structure ideas into View 40 (opposing) and View 60 (supporting). Use E, G, O, S, F, I categories.
-    ${referenceContext}
-    Return strictly JSON: { "centralIdea": "...", "view40": {"title": "...", "ideas": [{"letter": "S", "category": "...", "keyword": "...", "explanation": "..."}]}, "view60": {...} }`;
-    
-    try {
-      const result = await fetchWithRetry({
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: "Generate EGOSFI mind map." }] }], systemInstruction: { parts: [{ text: systemInstruction }] }, generationConfig: { responseMimeType: "application/json" } })
-      });
-      setMindMapData(parseGeminiResponse(result.candidates[0].content.parts[0].text));
-    } catch (error) { handleApiError(error); setShowIdeasModal(false); } finally { setIsGeneratingIdeas(false); }
-  };
-
-  const handleViewSampleFromPractice = () => {
-    if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước.", "error");
-    const matchedSample = sampleEssays.find(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
-    if (matchedSample) { closeAllSidebars(); setSelectedSample(matchedSample); } 
-    else showToast("Chưa có bài mẫu cho đề bài này trong Kho.", "info");
-  };
-
-  const handleSuggestPromptVocab = async () => { 
-    if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước.", "error");
-    closeAllSidebars(); setShowVocabSidebar(true); if (suggestedPromptVocabs.length > 0) return; 
-    if (!checkAndRecordApiCall()) { setShowVocabSidebar(false); return; } 
-    
-    setIsGeneratingPromptVocabs(true);
-
-    // --- RAG: TÌM BÀI MẪU THAM KHẢO ---
-    let referenceContext = "";
-    let matchedSamples = sampleEssays.filter(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
-    if (matchedSamples.length < 5 && selectedSubtopic) {
-        matchedSamples = [...matchedSamples, ...sampleEssays.filter(s => s.subtopic === selectedSubtopic && !matchedSamples.includes(s))];
-    }
-    if (matchedSamples.length < 5 && selectedTopic) {
-        matchedSamples = [...matchedSamples, ...sampleEssays.filter(s => s.topic === selectedTopic && !matchedSamples.includes(s))];
-    }
-    const topSamples = matchedSamples.slice(0, 5);
-    
-    if (topSamples.length > 0) {
-        referenceContext = `\n\nI have provided some high-quality reference essays below. PLEASE EXTRACT EXACTLY 10 academic phrases DIRECTLY from these essays instead of generating new ones.\n`;
-        topSamples.forEach((s, idx) => {
-            referenceContext += `--- Reference Essay ${idx + 1} ---\nPrompt: ${s.prompt}\nEssay:\n${s.content}\n\n`;
-        });
-    }
-
-    const systemInstruction = `Suggest exactly 10 academic phrases for this prompt: "${prompt}". 
-    ${referenceContext}
-    Return JSON array of objects with {phrase, meaning, source}.`;
-    
-    try {
-      const result = await fetchWithRetry({
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: "Suggest vocabulary." }] }], systemInstruction: { parts: [{ text: systemInstruction }] }, generationConfig: { responseMimeType: "application/json" } })
-      });
-      setSuggestedPromptVocabs(parseGeminiResponse(result.candidates[0].content.parts[0].text));
-    } catch (error) { handleApiError(error); setShowVocabSidebar(false); } finally { setIsGeneratingPromptVocabs(false); }
-  };
-
-  const handleStartGuidedWriting = async () => {
-    if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước!", "error");
-    setShowGuidedModal(true); 
-    if (!checkAndRecordApiCall()) { setShowGuidedModal(false); return; } 
-
-    setIsGeneratingGuide(true);
-    setGuidedPlan(null); setGuidedDrafts({ intro: '', body1: '', body2: '', conclusion: '' }); setGuidedStepIndex(0);
-
-    // --- RAG: TÌM BÀI MẪU THAM KHẢO ---
-    let referenceContext = "";
-    let matchedSamples = sampleEssays.filter(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
-    if (matchedSamples.length < 3 && selectedSubtopic) {
-        matchedSamples = [...matchedSamples, ...sampleEssays.filter(s => s.subtopic === selectedSubtopic && !matchedSamples.includes(s))];
-    }
-    const topSamples = matchedSamples.slice(0, 3);
-    
-    if (topSamples.length > 0) {
-        referenceContext = `\n\nI have provided some high-quality reference essays below. You MUST EXTRACT the vocabulary, collocations, and ideas directly from THESE ESSAYS to guide the student, rather than inventing new ones.\n`;
-        topSamples.forEach((s, idx) => {
-            referenceContext += `--- Reference Essay ${idx + 1} ---\nPrompt: ${s.prompt}\nEssay:\n${s.content}\n\n`;
-        });
-    }
-
-    const systemInstruction = `You are an expert IELTS Writing Tutor. The student needs to write an essay for this prompt: "${prompt}".
-    Create a 4-step Guided Writing Plan. For Introduction, Body 1, and Body 2, provide EXACTLY 3 natural, precise, and context-appropriate collocations (Band 7.5+) that the student MUST use.
-
-    ${referenceContext}
-    
-    CRITICAL RULES FOR VOCABULARY AND GRAMMAR:
-    1. DO NOT use obscure "big words", overly complex grammar, or forced academic jargon (avoid "đao to búa lớn").
-    2. Prioritize clarity, fluency, grammatical accuracy, and natural phrasing from the reference essays (if provided).
-    3. For each step, provide 2 DIFFERENT grammatical structures for the student to translate the main idea.
-    
-    Return STRICTLY JSON matching this structure:
-    {
-      "steps": [
-        {
-          "id": "intro", "title": "1. Mở bài (Introduction)", 
-          "instruction": "Paraphrase đề bài và đưa ra Thesis Statement (quan điểm của bạn).", 
-          "structures": [
-            { "name": "Cách 1: Cơ bản, Rõ ràng (Band 6.5-7.0)", "hint": "Gợi ý dịch: Nhiều người cho rằng... Tuy nhiên, tôi hoàn toàn tin rằng..." },
-            { "name": "Cách 2: Tự nhiên, Trôi chảy (Band 7.5)", "hint": "Gợi ý dịch: Mặc dù không thể phủ nhận rằng..., quan điểm của tôi là..." }
-          ],
-          "requiredVocab": [{"phrase": "collocation 1", "meaning": "nghĩa tiếng việt"}, {"phrase": "collocation 2", "meaning": "nghĩa tiếng việt"}, {"phrase": "collocation 3", "meaning": "nghĩa tiếng việt"}]
-        },
-        {
-          "id": "body1", "title": "2. Thân bài 1 (Đoạn nhượng bộ / Mặt trái)", 
-          "instruction": "Viết đoạn Body 1.", 
-          "structures": [
-            { "name": "Cách 1: Trực tiếp, dễ hiểu", "hint": "Dịch: Một mặt, có vài lý do tại sao [Quan điểm A] hợp lý. Đầu tiên là..." },
-            { "name": "Cách 2: Dùng chủ ngữ giả / Trôi chảy hơn", "hint": "Dịch: Có thể hiểu được tại sao một số người ủng hộ [Quan điểm A]. Lập luận chính nằm ở chỗ..." }
-          ],
-          "requiredVocab": [{"phrase": "collocation 1", "meaning": "nghĩa tiếng việt"}, {"phrase": "collocation 2", "meaning": "nghĩa tiếng việt"}, {"phrase": "collocation 3", "meaning": "nghĩa tiếng việt"}]
-        },
-        {
-          "id": "body2", "title": "3. Thân bài 2 (Đoạn khẳng định / Mặt lợi)", 
-          "instruction": "Viết đoạn Body 2 bảo vệ quan điểm chính.", 
-          "structures": [
-            { "name": "Cách 1: Chuyển ý mạch lạc", "hint": "Dịch: Mặt khác, tôi cho rằng những lợi ích thì quan trọng hơn nhiều. Cụ thể là..." },
-            { "name": "Cách 2: Nhấn mạnh, tự nhiên", "hint": "Dịch: Bất chấp những lập luận trên, tôi vẫn tin tưởng mãnh liệt rằng..." }
-          ],
-          "requiredVocab": [{"phrase": "collocation 4", "meaning": "nghĩa tiếng việt"}, {"phrase": "collocation 5", "meaning": "nghĩa tiếng việt"}, {"phrase": "collocation 6", "meaning": "nghĩa tiếng việt"}]
-        },
-        {
-          "id": "conclusion", "title": "4. Kết bài (Conclusion)", 
-          "instruction": "Khẳng định lại quan điểm và tóm tắt ngắn gọn 2 ý chính.", 
-          "structures": [
-            { "name": "Cách 1: Cấu trúc Tóm lại", "hint": "Dịch: Tóm lại, mặc dù có những lo ngại về..., tôi vẫn tin rằng..." },
-            { "name": "Cách 2: Rút ra hệ quả", "hint": "Dịch: Nói tóm lại, dẫu cho [A] có những điểm mạnh, [B] vẫn là yếu tố mang tính quyết định bởi vì..." }
-          ],
-          "requiredVocab": []
-        }
-      ]
-    }`;
-
-    try {
-      const result = await fetchWithRetry({
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: "Generate Guided Writing Plan" }] }], systemInstruction: { parts: [{ text: systemInstruction }] }, generationConfig: { responseMimeType: "application/json" } })
-      });
-      setGuidedPlan(parseGeminiResponse(result.candidates[0].content.parts[0].text));
-    } catch (error) { handleApiError(error); setShowGuidedModal(false); } finally { setIsGeneratingGuide(false); }
-  };
-
-  const handleParaphrase = async () => { 
-    if (!paraphraseInput.trim()) return;
-    if (!checkAndRecordApiCall()) return; 
-    
-    setIsParaphrasing(true); setParaphraseResult(null);
-    const systemPrompt = `Paraphrase the following sentence in 2 styles: Band 6.5 and Band 7.5+. Input: "${paraphraseInput}". Return JSON: { "band65": "...", "band75": "..." }.`;
-    try {
-      const result = await fetchWithRetry({
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: systemPrompt }] }], generationConfig: { responseMimeType: "application/json" } })
-      });
-      setParaphraseResult(parseGeminiResponse(result.candidates[0].content.parts[0].text));
-    } catch (error) { handleApiError(error); } finally { setIsParaphrasing(false); }
-  };
-
-  const handleEvaluate = async () => {
-    const minWords = writingTarget === 'full' ? 150 : 50;
-    if (wordCount < 30) return showToast("Vui lòng viết ít nhất 30 từ để AI có thể đánh giá.", "error");
-    
-    const meetsStreakReq = wordCount >= minWords;
-    if (!meetsStreakReq) {
-       showToast(`Bài viết của bạn chưa đủ độ dài (${minWords} từ) để được cộng chuỗi Streak. AI vẫn sẽ chấm điểm nhé!`, "info", 6000);
-    }
-
-    if (!checkAndRecordApiCall()) return;
-
-    setIsEvaluating(true); setIsTimerRunning(false); setActiveCommentIndex(null); setCorrectionAttempts({});
-    setCopilotUses(3); 
-    
-    let targetInstruction = writingTarget === 'full' ? `Grade the FULL ESSAY.` : writingTarget === 'intro_conc' ? `The student is ONLY writing the INTRODUCTION and CONCLUSION. Evaluate based on Paraphrasing and Thesis.` : `The student is ONLY writing BODY PARAGRAPH(S). Evaluate based on flow, coherence and topic sentences.`;
-    
-    // --- RAG: TÌM BÀI MẪU THAM KHẢO CHO AI ---
-    let referenceContext = "";
-    
-    // 1. Ưu tiên tìm bài có trùng khớp Đề bài (Prompt)
-    let matchedSamples = sampleEssays.filter(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
-    
-    // 2. Nếu chưa đủ 5 bài, vét thêm bài cùng Subtopic
-    if (matchedSamples.length < 5 && selectedSubtopic) {
-        const subtopicSamples = sampleEssays.filter(s => s.subtopic === selectedSubtopic && !matchedSamples.includes(s));
-        matchedSamples = [...matchedSamples, ...subtopicSamples];
-    }
-
-    // 3. Nếu vẫn chưa đủ 5 bài, vét nốt bài cùng Topic lớn
-    if (matchedSamples.length < 5 && selectedTopic) {
-        const topicSamples = sampleEssays.filter(s => s.topic === selectedTopic && !matchedSamples.includes(s));
-        matchedSamples = [...matchedSamples, ...topicSamples];
-    }
-
-    // Cắt lấy đúng 5 bài chất lượng nhất
-    const topSamples = matchedSamples.slice(0, 5);
-    
-    if (topSamples.length > 0) {
-        referenceContext = `\n\nTo calibrate your grading standard, READ THESE REFERENCE ESSAYS written by a top-tier IELTS expert for similar topics:\n`;
-        topSamples.forEach((s, idx) => {
-            referenceContext += `--- Reference Essay ${idx + 1} ---\nPrompt: ${s.prompt}\nEssay:\n${s.content}\n\n`;
-        });
-        referenceContext += `CRITICAL RULE FOR TASK RESPONSE (TR): DO NOT force the student to use the same ideas or opinions as the reference essays. Evaluate the student's Task Response based solely on how logically they develop and support THEIR OWN ideas, even if they completely contradict the reference essays.\nCRITICAL RULE FOR CC & LR & GRA: Use the reference essays to set the benchmark for Band 9.0 natural phrasing, vocabulary, and implicit cohesion. Do NOT penalize native-like phrasing just because it's uncommon.\n`;
-    }
-
-    // ÁP DỤNG LUẬT CHẤM ĐIỂM (ROUND DOWN) THEO BAND DESCRIPTORS CHUẨN CỦA IELTS
-    let systemInstruction = `You are a strict and expert IELTS Writing Task 2 examiner. 
-    1. SCORING CRITERIA: Grade the essay based STRICTLY on the official IELTS Writing Task 2 Band Descriptors (Public Version).
-    2. SCORING RULE (CRITICAL): Calculate the average of the 4 criteria. For the final Overall Band, you MUST ROUND DOWN to the nearest 0.5 or whole band. 
-    3. TARGET: ${targetInstruction} Provide specific comments for each criterion based on the descriptors, and detailedCorrections: [{original, corrected, explanation}].
-    ${referenceContext}
-    4. Return strictly JSON: { "overallBand": 6.5, "trScore": 6.0, "trComment": "...", "ccScore": 7.0, "ccComment": "...", "lrScore": 6.0, "lrComment": "...", "graScore": 6.0, "graComment": "...", "detailedCorrections": [...], "polishedEssay": "Band 8.0 polished version of what student wrote." }`;
-
-    try {
-      const result = await fetchWithRetry({
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: `Prompt: ${prompt}\nStudent Text (${writingTarget}): ${essay}` }] }], systemInstruction: { parts: [{ text: systemInstruction }] }, generationConfig: { responseMimeType: "application/json" } })
-      });
-      const evaluation = parseGeminiResponse(result.candidates[0].content.parts[0].text);
-      setEvaluationResult(evaluation);
-      
-      if (!IS_PREVIEW_MODE) {
-         await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'evaluations'), { prompt, wordCount, target: writingTarget, overallBand: evaluation.overallBand, createdAt: new Date().toISOString() });
-      } else {
-         setEvaluationsHistory(prev => [{ id: Date.now().toString(), prompt, wordCount, target: writingTarget, overallBand: evaluation.overallBand, trScore: evaluation.trScore, ccScore: evaluation.ccScore, lrScore: evaluation.lrScore, graScore: evaluation.graScore, createdAt: new Date().toISOString() }, ...prev]);
-      }
-
-      // XỬ LÝ LOGIC STREAK NẾU ĐẠT ĐIỀU KIỆN SỐ TỪ
-      if (meetsStreakReq) {
-         const today = new Date().toLocaleDateString('en-CA'); 
-         const yesterdayDate = new Date();
-         yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-         const yesterday = yesterdayDate.toLocaleDateString('en-CA');
-
-         let newStreak = userStats.currentStreak || 0;
-         if (userStats.lastWriteDate !== today) {
-            if (userStats.lastWriteDate === yesterday) {
-               newStreak += 1;
-            } else {
-               newStreak = 1;
-            }
-         }
-         
-         const newLongest = Math.max(userStats.longestStreak || 0, newStreak);
-         const newStats = { currentStreak: newStreak, longestStreak: newLongest, lastWriteDate: today };
-
-         if (!IS_PREVIEW_MODE) {
-            await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'user_info', 'stats'), newStats);
-         } else {
-            setUserStats(newStats);
-         }
-
-         if (userStats.lastWriteDate !== today) {
-            showToast(`🔥 Tuyệt vời! Bạn đã hoàn thành bài tập. Streak: ${newStreak} ngày liên tiếp!`, "success", 5000);
-         }
-      }
-
-    } catch (error) { handleApiError(error); } finally { setIsEvaluating(false); }
-  };
-
-  // TÍNH NĂNG GOM CHẤM MỘT LẦN (BATCH CORRECTION CHECK)
-  const handleBatchCheckCorrections = async () => {
-    // Lọc ra các câu mà người dùng ĐÃ có nhập text sửa và CHƯA được review
-    const pendingChecks = Object.entries(correctionAttempts)
-      .filter(([idx, attempt]) => attempt.text && attempt.text.trim() && !attempt.reviewed)
-      .map(([idx, attempt]) => ({
-          idx: idx,
-          originalError: evaluationResult.detailedCorrections[idx].original,
-          studentRewrite: attempt.text.trim()
-      }));
-
-    if (pendingChecks.length === 0) {
-       return showToast("Vui lòng viết lại ít nhất 1 câu lỗi trước khi kiểm tra.", "info");
-    }
-
-    if (!checkAndRecordApiCall()) return; // Chỉ tiêu tốn đúng 1 lượt API cho toàn bộ batch
-
-    setIsBatchChecking(true);
-    
-    // Tạo cấu trúc dữ liệu gửi lên AI
-    const batchPayload = pendingChecks.map(p => ({
-        id: p.idx,
-        error: p.originalError,
-        rewrite: p.studentRewrite
-    }));
-
-    const systemPrompt = `You are an IELTS teacher. Evaluate a batch of student's rewritten sentences.
-    Input format: an array of objects {id, error, rewrite}.
-    For each rewrite, check if it successfully fixes the original error in grammatical/lexical context.
-    Return strictly JSON: { "results": [ { "id": "...", "isCorrect": true/false, "feedback": "Brief feedback max 15 words" } ] }`;
-
-    try {
-        const result = await fetchWithRetry({
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                contents: [{ parts: [{ text: JSON.stringify(batchPayload) }] }], 
-                systemInstruction: { parts: [{ text: systemPrompt }] }, 
-                generationConfig: { responseMimeType: "application/json" } 
-            })
-        });
-        
-        const aiReview = parseGeminiResponse(result.candidates[0].content.parts[0].text);
-        
-        // Cập nhật lại state correctionAttempts cho các câu đã check
-        setCorrectionAttempts(prev => {
-            const newState = { ...prev };
-            aiReview.results.forEach(res => {
-                if (newState[res.id]) {
-                    newState[res.id] = {
-                        ...newState[res.id],
-                        reviewed: true,
-                        isCorrect: res.isCorrect,
-                        feedback: res.feedback,
-                        showAnswer: true // Hiển thị luôn đáp án chuẩn bên dưới
-                    };
-                }
-            });
-            return newState;
-        });
-
-        // THÔNG BÁO TỐI ƯU UX
-        showToast(`Tuyệt vời! Đã chấm xong ${aiReview.results.length} câu ⚡`, "success", 5000);
-
-    } catch (e) { 
-        handleApiError(e); 
-    } finally { 
-        setIsBatchChecking(false); 
-    }
-  };
-
-  const handleStartQuiz = async () => {
-    const filteredVocabs = vocabularies.filter(v => (filterQuizTopic ? v.topicId === filterQuizTopic : true) && (filterQuizSubtopic ? v.subtopicId === filterQuizSubtopic : true));
-    if (filteredVocabs.length < 1) return showToast("Không có từ vựng nào. Hãy thêm từ mới nhé!", "error");
-    if (!checkAndRecordApiCall()) return; 
-
-    setIsGeneratingQuiz(true); setQuizAnswers({}); setQuizResults(null); setRevealedHints({});
-    const selectedVocabs = [...filteredVocabs].sort(() => 0.5 - Math.random()).slice(0, 10).map(v => v.basePhrase || v.phrase);
-    const systemInstruction = `Create a fill-in-the-blank exercise for exactly these words: [${selectedVocabs.join(', ')}]. 
-    Return strictly JSON: { "questions": [ { "question": "Sentence with ___", "answer": "exact word", "hint": "Smart hint" } ] }.`;
-    try {
-      const result = await fetchWithRetry({
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: "Generate Quiz" }] }], systemInstruction: { parts: [{ text: systemInstruction }] }, generationConfig: { responseMimeType: "application/json" } })
-      });
-      const aiData = parseGeminiResponse(result.candidates[0].content.parts[0].text);
-      setQuizData(aiData.questions || []); setWordBank((aiData.questions || []).map(q => q.answer).sort(() => 0.5 - Math.random())); setQuizStep('playing');
-    } catch (error) { handleApiError(error); } finally { setIsGeneratingQuiz(false); }
-  };
-
-  // --- RENDER CONDITIONALS ---
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-         <div className="bg-white p-10 rounded-[32px] shadow-2xl max-w-md w-full text-center border animate-slideUp">
-            <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-inner"><PenTool size={40}/></div>
-            <h1 className="text-3xl font-black text-slate-800 mb-2">Max Academy Pro</h1>
-            <p className="text-sm font-medium text-slate-500 mb-10 leading-relaxed">Hệ thống luyện thi IELTS Writing độc quyền tích hợp AI thông minh.</p>
-            <button onClick={handleLogin} disabled={isLoggingIn} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-black text-base py-4 rounded-2xl shadow-xl shadow-slate-900/20 transition-all flex items-center justify-center gap-3">
-               {isLoggingIn ? <Loader2 className="animate-spin" size={20}/> : <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google" className="w-5 h-5 bg-white p-0.5 rounded-full" />}
-               {isLoggingIn ? 'Đang kết nối...' : 'Đăng nhập bằng Google'}
-            </button>
-            <p className="text-[10px] text-slate-400 mt-6">*Chỉ các tài khoản học viên nội bộ mới được cấp quyền truy cập.</p>
-         </div>
-      </div>
-    );
-  }
-
-  if (isAuthorized === null) {
-    return <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center"><Loader2 className="animate-spin text-emerald-600 mb-4" size={40}/><p className="font-bold text-slate-500">Đang kiểm tra quyền truy cập...</p></div>;
-  }
-
-  if (isAuthorized === false) {
-    return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-         <div className="bg-white p-10 rounded-[32px] shadow-2xl max-w-md w-full text-center border animate-slideUp">
-            <div className="w-20 h-20 bg-rose-100 text-rose-600 rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-inner"><ShieldAlert size={40}/></div>
-            <h1 className="text-2xl font-black text-slate-800 mb-3">Truy cập bị từ chối</h1>
-            <p className="text-sm font-medium text-slate-500 mb-6 leading-relaxed">
-              Email <strong className="text-rose-600">{user.email}</strong> của bạn chưa được cấp quyền sử dụng hệ thống này. Vui lòng liên hệ với Admin để kích hoạt tài khoản.
-            </p>
-            <button onClick={handleLogout} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-sm py-4 rounded-2xl transition-all">Đăng xuất & Thử tài khoản khác</button>
-         </div>
-      </div>
-    );
-  }
-
-  // --- RENDER APP COMPONENTS ---
   const renderTopNav = () => (
     <div className="w-full bg-slate-900 text-slate-300 flex flex-wrap lg:flex-nowrap items-center justify-between px-4 py-2 shrink-0 shadow-md z-20 relative gap-3">
       <div className="flex items-center gap-3 shrink-0">
@@ -1197,9 +1045,10 @@ export default function App() {
         <div className="bg-orange-50 text-orange-600 px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-black text-sm border border-orange-200 shadow-sm cursor-help" title={`Kỷ lục dài nhất: ${userStats.longestStreak || 0} ngày`}>
            🔥 {userStats.currentStreak || 0}
         </div>
+
         <div className="bg-slate-800 px-3 py-1.5 rounded-lg flex flex-col hidden sm:flex">
            <span className="text-[9px] text-slate-400 uppercase font-black">Học viên</span>
-           <span className="text-xs text-white font-medium truncate max-w-[120px]">{user.email}</span>
+           <span className="text-xs text-white font-medium truncate max-w-[120px]">{user?.email || 'Guest'}</span>
         </div>
         <button onClick={() => setShowApiKeyModal(true)} className="bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Đổi API Key"><Key size={14} /></button>
         <button onClick={() => setActiveTab('backup')} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Backup & Restore"><AlertTriangle size={14} /></button>
@@ -1219,12 +1068,9 @@ export default function App() {
     const pendingCount = Object.values(correctionAttempts).filter(a => a.text && a.text.trim() && !a.reviewed).length;
 
     return (
-    <div className="flex-1 flex p-2 lg:p-3 gap-3 min-h-0 relative"> 
+    <div className="flex-1 flex p-2 lg:p-3 gap-3 min-h-0 relative">
       
-      {/* Editor Column */}
       <div className="flex-1 flex flex-col min-w-0 gap-3 relative">
-        
-        {/* BANNER STREAK ĐỘNG VIÊN */}
         <div className="bg-orange-50 border border-orange-200 text-orange-800 px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm shrink-0">
           <span className="text-lg">🔥</span> 
           {userStats.currentStreak > 0 
@@ -1272,11 +1118,16 @@ export default function App() {
               <button onClick={handleSuggestIdeas} disabled={isGeneratingIdeas} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-amber-100 text-amber-700 disabled:opacity-50">
                 {isGeneratingIdeas ? <Loader2 size={12} className="animate-spin"/> : <Lightbulb size={12} />} Mind Map Idea
               </button>
-              <button onClick={handleViewSampleFromPractice} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-blue-100 text-blue-700"><BookPlus size={12} /> Bài mẫu</button>
+              <button onClick={() => {
+                if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước.", "error");
+                const matchedSample = sampleEssays.find(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
+                if (matchedSample) { closeAllSidebars(); setSelectedSample(matchedSample); } 
+                else showToast("Chưa có bài mẫu cho đề bài này trong Kho.", "info");
+              }} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-blue-100 text-blue-700"><BookPlus size={12} /> Bài mẫu</button>
             </div>
           </div>
 
-          <div className="flex-1 p-3 relative flex flex-col">
+          <div className="flex-1 p-3 relative flex flex-col relative">
             <textarea 
               ref={editorRef} 
               className="w-full h-full resize-none outline-none text-slate-700 leading-relaxed text-[15px] lg:text-base placeholder-slate-400 custom-scrollbar relative z-0" 
@@ -1290,7 +1141,6 @@ export default function App() {
               spellCheck={false} 
             />
             
-            {/* LỚP PHỦ HIỂN THỊ MENU COPILOT */}
             {(isCopilotLoading || showCopilotMenu) && (
               <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-center animate-fadeIn rounded-b-xl">
                 <div className="bg-white p-5 rounded-2xl shadow-2xl border border-slate-200 w-full max-w-sm">
@@ -1347,9 +1197,8 @@ export default function App() {
             </div>
           </div>
         </div>
-      </div> {/* End Editor Column */}
+      </div>
 
-      {/* Evaluation Results Side Panel */}
       {evaluationResult && (
         <div 
            className="flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-slideRight z-10 shrink-0 relative"
@@ -1395,9 +1244,9 @@ export default function App() {
 
               <div className="pt-2 border-t">
                  <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-1.5 text-sm"><Highlighter className="text-rose-500" size={16}/> Sửa lỗi chi tiết</h4>
-
+                 
                  <div className="space-y-4">
-                    {evaluationResult.detailedCorrections.map((c, i) => {
+                    {evaluationResult.detailedCorrections?.map((c, i) => {
                        const attemptState = correctionAttempts[i] || {};
                        const showAnswer = attemptState.showAnswer || attemptState.reviewed;
                        const sentenceDetails = getFullSentenceDetails(essay, c.original, c.corrected);
@@ -1425,7 +1274,7 @@ export default function App() {
                                <span className="shrink-0 mt-0.5 bg-amber-100 p-1 rounded-full"><Lightbulb size={14} className="text-amber-600"/></span>
                                <p className="text-slate-700 text-xs leading-relaxed"><strong>Giải thích:</strong> {c.explanation}</p>
                             </div>
-                            
+                             
                             {!showAnswer ? (
                                <div className="flex flex-col gap-2 animate-fadeIn mt-2">
                                   <span className="text-[11px] font-bold text-slate-500">✍️ Hãy thử viết lại câu trên cho đúng:</span>
@@ -1452,7 +1301,7 @@ export default function App() {
                                         <span className="leading-relaxed block">{attemptState.feedback}</span>
                                      </div>
                                   )}
-                                  
+                                   
                                   <div className="pt-4 border-t border-slate-200">
                                      <span className="text-[11px] font-black uppercase text-emerald-600 tracking-wider mb-2 flex items-center gap-1.5"><CheckCircle2 size={14}/> ✅ Câu sửa hoàn thiện</span>
                                      <div className="bg-white border border-emerald-200 p-3.5 rounded-xl text-[13px] text-slate-700 leading-relaxed shadow-sm">
@@ -1474,7 +1323,7 @@ export default function App() {
                             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-black disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg transition-all"
                         >
                             {isBatchChecking ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />} 
-                            {isBatchChecking ? 'Đang chấm điểm các câu...' : `Kiểm tra kết quả (${pendingCount} câu)`}
+                            {isBatchChecking ? 'Đang chấm điểm các câu...' : `Kiểm tra tất cả ${pendingCount} câu`}
                         </button>
                     </div>
 
@@ -1482,9 +1331,9 @@ export default function App() {
               </div>
               
               <div className="pt-5 border-t">
-                 <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-1.5 text-sm md:text-base"><Award className="text-amber-500" size={18}/> Tham khảo (Band 8.0+)</h4>
+                 <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-1.5 text-sm md:text-base"><Award className="text-amber-500" size={18}/> Tham khảo (Band 8.0)</h4>
                  <div className="p-4 md:p-5 bg-amber-50/80 rounded-2xl text-sm md:text-base leading-loose text-amber-900 font-serif border border-amber-200/60 shadow-inner">
-                    {evaluationResult.polishedEssay.split(/\n+/).filter(p => p.trim()).map((paragraph, idx) => (
+                    {evaluationResult.polishedEssay?.split(/\n+/).filter(p => p.trim()).map((paragraph, idx) => (
                        <p key={idx} className="mb-4 last:mb-0 text-justify">{paragraph}</p>
                     ))}
                  </div>
@@ -1644,7 +1493,7 @@ export default function App() {
                  <h2 className="text-lg font-black text-slate-800 flex items-center gap-2"><Gamepad2 className="text-amber-500"/> Fill in the Blanks</h2>
                  <button onClick={() => setQuizStep('setup')} className="bg-white border border-slate-200 text-slate-600 px-3 py-1.5 rounded-lg font-bold text-xs hover:bg-slate-100 flex items-center gap-1"><X size={14}/> Thoát</button>
               </div>
-               
+              
               <div className="flex flex-wrap gap-2 items-center">
                  <span className="text-[10px] font-black text-amber-700 uppercase tracking-wider flex items-center gap-1 bg-amber-100 px-2 py-1 rounded"><Layers size={12}/> Word Bank:</span>
                  {wordBank.map((w, i) => (
@@ -1675,7 +1524,7 @@ export default function App() {
                              </React.Fragment>
                           ))}
                           </p>
-                           
+                          
                           <div className="mt-2 min-h-[24px]">
                              {!revealedHints[i] ? (
                                 <button onClick={() => setRevealedHints(prev => ({...prev, [i]: true}))} className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-100 hover:bg-amber-100 flex items-center gap-1 transition-colors">
@@ -1687,7 +1536,7 @@ export default function App() {
                                 </p>
                              )}
                           </div>
-                           
+                          
                           {quizResults && (
                              <div className="mt-2">
                                 {quizResults[i] ? (
@@ -1733,7 +1582,6 @@ export default function App() {
       highestBand = Math.max(...evaluationsHistory.map(e => Number(e.overallBand) || 0)).toFixed(1);
     }
 
-    // Tính toán dữ liệu cho Biểu đồ Radar
     const radarData = [
       { name: 'TR', score: parseFloat(avgTR) || 0 },
       { name: 'CC', score: parseFloat(avgCC) || 0 },
@@ -1742,24 +1590,22 @@ export default function App() {
     ];
 
     const getPoint = (score, index) => {
-       const r = (score / 9) * 40; // Scale điểm 0-9 thành bán kính 0-40
+       const r = (score / 9) * 40;
        const angle = (index * 90 - 90) * (Math.PI / 180);
        return `${50 + r * Math.cos(angle)},${50 + r * Math.sin(angle)}`;
     };
 
     const polygonPoints = radarData.map((d, i) => getPoint(d.score, i)).join(' ');
 
-    // Tính toán Điểm mạnh / Điểm yếu
     const minScore = Math.min(...radarData.map(d => d.score));
     const maxScore = Math.max(...radarData.map(d => d.score));
     const weakest = radarData.find(d => d.score === minScore)?.name || 'TR';
     const strongest = radarData.find(d => d.score === maxScore)?.name || 'TR';
 
-    // Bác sĩ AI kê đơn dựa trên "Kẻ ngáng đường"
     const adviceMap = {
        'TR': { title: 'Task Response', text: 'Bạn đang gặp khó khăn trong việc bám sát đề và phát triển ý. Lời khuyên: Hãy sử dụng tính năng Mindmap EGOSFI trước khi viết để lập dàn ý mạch lạc hơn.' },
        'CC': { title: 'Coherence & Cohesion', text: 'Các câu/đoạn văn của bạn chưa liên kết chặt chẽ. Lời khuyên: Hãy vào Cẩm nang 40/60, ôn lại mục [Từ nối chuyển ý] để luồng văn mượt mà hơn.' },
-       'LR': { title: 'Lexical Resource', text: 'Vốn từ vựng của bạn còn hạn chế hoặc lặp từ nhiều. Lời khuyên: Chăm chỉ dùng "Gợi ý từ (@@)" và thường xuyên chơi Quiz Ôn tập từ vựng nhé!' },
+       'LR': { title: 'Lexical Resource', text: 'Vốn từ vựng của bạn còn hạn chế hoặc lặp từ nhiều. Lời khuyên: Chăm chỉ dùng "Gợi ý từ (@...@)" và thường xuyên chơi Quiz Ôn tập từ vựng nhé!' },
        'GRA': { title: 'Grammatical Range', text: 'Độ chính xác ngữ pháp và cấu trúc câu phức chưa cao. Lời khuyên: Hãy bôi đen các câu đơn giản và dùng tính năng [✨ Nâng cấp câu] để học cách viết Band 7.5+.' }
     };
 
@@ -1775,32 +1621,26 @@ export default function App() {
 
          {totalEssays > 0 ? (
            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 shrink-0">
-              {/* CỘT 1: RADAR CHART */}
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col items-center justify-center relative overflow-hidden">
                  <div className="absolute top-0 left-0 w-full h-1 bg-indigo-400"></div>
                  <h3 className="font-black text-slate-800 mb-6 w-full flex items-center gap-2"><Target size={18} className="text-rose-500"/> Biểu đồ Năng lực (Spider Web)</h3>
                  
                  <div className="relative w-48 h-48 sm:w-56 sm:h-56 mb-4">
                     <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-md">
-                       {/* Grid lưới mạng nhện (điểm 3, 5, 7, 9) */}
                        {[3, 5, 7, 9].map(score => (
                          <polygon key={score} points={[0,1,2,3].map(i => getPoint(score, i)).join(' ')} fill="none" stroke="#e2e8f0" strokeWidth="0.5" strokeDasharray="1,1" />
                        ))}
-                       {/* Trục tọa độ */}
                        <line x1="50" y1="10" x2="50" y2="90" stroke="#cbd5e1" strokeWidth="0.5" />
                        <line x1="10" y1="50" x2="90" y2="50" stroke="#cbd5e1" strokeWidth="0.5" />
                         
-                       {/* Vùng Dữ liệu của học viên */}
                        <polygon points={polygonPoints} fill="rgba(99, 102, 241, 0.2)" stroke="#4f46e5" strokeWidth="1.5" className="transition-all duration-700 ease-in-out" />
                         
-                       {/* Các điểm mút */}
                        {radarData.map((d, i) => {
                           const [x, y] = getPoint(d.score, i).split(',');
                           return <circle key={i} cx={x} cy={y} r="2" fill="#4f46e5" className="animate-pulse" />;
                        })}
                     </svg>
                     
-                    {/* Nhãn dán các trục */}
                     <div className="absolute top-0 inset-x-0 flex justify-center -mt-2"><span className="text-[10px] font-black text-blue-600 bg-white px-1 shadow-sm rounded">TR ({avgTR})</span></div>
                     <div className="absolute right-0 inset-y-0 flex items-center -mr-6"><span className="text-[10px] font-black text-amber-600 bg-white px-1 shadow-sm rounded">CC ({avgCC})</span></div>
                     <div className="absolute bottom-0 inset-x-0 flex justify-center -mb-2"><span className="text-[10px] font-black text-emerald-600 bg-white px-1 shadow-sm rounded">LR ({avgLR})</span></div>
@@ -1808,7 +1648,6 @@ export default function App() {
                  </div>
               </div>
 
-              {/* CỘT 2: BÁC SĨ AI KÊ ĐƠN */}
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col relative overflow-hidden">
                  <div className="absolute top-0 left-0 w-full h-1 bg-amber-400"></div>
                  <h3 className="font-black text-slate-800 mb-6 w-full flex items-center gap-2"><Sparkles size={18} className="text-amber-500"/> Chẩn đoán & Lời khuyên</h3>
@@ -1908,7 +1747,7 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen bg-slate-100 font-sans overflow-hidden">
-      {isAuthorized === true && renderTopNav()}
+      {renderTopNav()}
       
       <main className="flex-1 overflow-hidden relative flex">
         {activeTab === 'practice' && renderPracticeTab()}
@@ -2023,25 +1862,21 @@ export default function App() {
                   <div className="space-y-3">
                       <p className="text-[11px] md:text-xs font-black uppercase text-indigo-600 mb-1">Mẫu Thesis cho 4 dạng bài phổ biến:</p>
                       
-                      {/* Dạng 1: Discuss both views */}
                       <div className="bg-white p-3 md:p-4 rounded-lg md:rounded-xl border-l-4 border-l-indigo-500 shadow-sm hover:border-indigo-400 transition-colors">
                           <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Dạng 1: Discuss both views & give opinion</p>
                           <p className="text-indigo-900 font-medium text-xs md:text-sm">People have different views about [Topic]. While there are valid arguments in favor of [Side A / 40%], I firmly believe that [Side B / 60%] is much more significant.</p>
                       </div>
 
-                      {/* Dạng 2: Agree / Disagree */}
                       <div className="bg-white p-3 md:p-4 rounded-lg md:rounded-xl border-l-4 border-l-emerald-500 shadow-sm hover:border-emerald-400 transition-colors">
                           <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Dạng 2: To what extent do you agree or disagree?</p>
                           <p className="text-emerald-900 font-medium text-xs md:text-sm">It is often argued that [Topic]. I completely agree/disagree with this perspective because [Reason 1] and [Reason 2].</p>
                       </div>
 
-                      {/* Dạng 3: Causes & Solutions */}
                       <div className="bg-white p-3 md:p-4 rounded-lg md:rounded-xl border-l-4 border-l-rose-500 shadow-sm hover:border-rose-400 transition-colors">
                           <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Dạng 3: Causes & Solutions / Problems & Solutions</p>
                           <p className="text-rose-900 font-medium text-xs md:text-sm">These days, [Topic] has become a matter of common concern. This problem is primarily caused by [Cause 1], and some viable solutions can be adopted to alleviate it.</p>
                       </div>
                       
-                      {/* Dạng 4: Advantages & Disadvantages */}
                       <div className="bg-white p-3 md:p-4 rounded-lg md:rounded-xl border-l-4 border-l-amber-500 shadow-sm hover:border-amber-400 transition-colors">
                           <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Dạng 4: Do the advantages outweigh the disadvantages?</p>
                           <p className="text-amber-900 font-medium text-xs md:text-sm">It is true that [Topic] has become increasingly common. While this trend brings some drawbacks, I believe its benefits are far more significant.</p>
@@ -2063,7 +1898,7 @@ export default function App() {
                        </ul>
                     </div>
                  </div>
-                 
+                  
                  <div className="bg-emerald-50 p-4 md:p-6 rounded-xl md:rounded-2xl border border-emerald-100 shadow-sm relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-12 h-12 md:w-16 md:h-16 bg-emerald-100 rounded-bl-full -mr-6 -mt-6 md:-mr-8 md:-mt-8"></div>
                     <h4 className="font-black text-emerald-700 mb-2 md:mb-3 text-sm md:text-base flex items-center gap-2"><span className="w-5 h-5 md:w-6 md:h-6 bg-emerald-200 rounded-full flex items-center justify-center text-[10px] md:text-xs text-emerald-800">3</span> Body 2 (60%) - Khẳng định</h4>
@@ -2118,7 +1953,7 @@ export default function App() {
                   <p className="mb-2 md:mb-3 text-xs md:text-sm"><strong>Công thức:</strong> Tóm tắt lại cả 2 mặt của vấn đề + Khẳng định lại Thesis Statement (1-2 câu).</p>
                   <div className="bg-white p-3 md:p-4 rounded-lg md:rounded-xl border-l-4 border-l-emerald-500 text-emerald-800 font-medium shadow-sm text-xs md:text-sm">In conclusion, while [Side A/40%] has some merits, I am of the opinion that [Side B/60%] is far more crucial due to [Reason 1] and [Reason 2].</div>
                </div>
-               
+                
             </div>
           </div>
         </div>
@@ -2131,7 +1966,7 @@ export default function App() {
                 <h3 className="font-black text-amber-600 text-base md:text-lg flex items-center gap-2"><Lightbulb size={22}/> Sơ đồ EGOSFI (40/60)</h3>
                 <button onClick={() => setShowIdeasModal(false)} className="hover:bg-slate-100 p-2 rounded-xl text-slate-500 transition-colors"><X size={20}/></button>
              </div>
-              
+               
              <div className="p-4 md:p-8 overflow-y-auto flex-1 min-h-0 custom-scrollbar relative">
                 {isGeneratingIdeas ? (
                   <div className="flex flex-col items-center justify-center py-20 h-full">
@@ -2143,14 +1978,12 @@ export default function App() {
                 mindMapData && mindMapData.view40 && mindMapData.view60 ? (
                   <div className="flex flex-col lg:flex-row items-stretch gap-6 lg:gap-4 relative w-full pt-4 pb-6">
                       
-                     {/* Cột Trái: VIEW 40 (Nhượng bộ) */}
                      <div className="flex-1 flex flex-col gap-4">
                         <div className="bg-white border-l-4 border-rose-500 py-3 px-4 rounded-xl shadow-sm text-center">
                            <p className="text-[10px] uppercase font-black tracking-widest text-rose-400 mb-1">VIEW 40 (Nhượng bộ)</p>
                            <h4 className="font-bold text-rose-700 text-sm">{mindMapData.view40.title}</h4>
                         </div>
                         <div className="space-y-4 lg:pr-6 relative">
-                           {/* Đường line mờ kết nối ở desktop */}
                            <div className="hidden lg:block absolute right-0 top-1/2 w-6 border-b-2 border-dashed border-rose-200"></div>
                             
                            {mindMapData.view40.ideas.map((id, i) => (
@@ -2169,7 +2002,6 @@ export default function App() {
                         </div>
                      </div>
 
-                     {/* Cột Giữa: Central Node */}
                      <div className="hidden lg:flex flex-col items-center justify-center w-52 shrink-0 relative z-10">
                         <div className="bg-indigo-50 text-indigo-900 p-5 rounded-3xl shadow-lg border-4 border-white text-center w-full z-10 relative">
                            <Brain size={28} className="mx-auto mb-2 text-indigo-500"/>
@@ -2178,14 +2010,12 @@ export default function App() {
                         </div>
                      </div>
 
-                     {/* Cột Phải: VIEW 60 (Lập luận chính) */}
                      <div className="flex-1 flex flex-col gap-4">
                         <div className="bg-white border-r-4 border-emerald-500 py-3 px-4 rounded-xl shadow-sm text-center">
                            <p className="text-[10px] uppercase font-black tracking-widest text-emerald-400 mb-1">VIEW 60 (Lập luận chính)</p>
                            <h4 className="font-bold text-emerald-700 text-sm">{mindMapData.view60.title}</h4>
                         </div>
                         <div className="space-y-4 lg:pl-6 relative">
-                           {/* Đường line mờ kết nối ở desktop */}
                            <div className="hidden lg:block absolute left-0 top-1/2 w-6 border-b-2 border-dashed border-emerald-200"></div>
 
                            {mindMapData.view60.ideas.map((id, i) => (
@@ -2215,15 +2045,9 @@ export default function App() {
       {showGuidedModal && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
           <div className="bg-slate-50 rounded-3xl shadow-2xl w-[95%] max-w-5xl max-h-[90vh] flex flex-col animate-slideUp overflow-hidden">
-             <div className="p-4 md:p-5 border-b flex flex-col gap-3 bg-white shrink-0 z-10 sticky top-0 shadow-sm">
-                <div className="flex justify-between items-center">
-                   <h3 className="font-black text-indigo-600 text-base md:text-lg flex items-center gap-2"><Wand2 size={22}/> Guided Writing Wizard (Step-by-step)</h3>
-                   <button onClick={() => setShowGuidedModal(false)} className="hover:bg-slate-100 p-2 rounded-xl text-slate-500 transition-colors"><X size={20}/></button>
-                </div>
-                <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex gap-3 items-start">
-                    <Target size={18} className="text-rose-500 shrink-0 mt-0.5"/>
-                    <p className="text-sm font-bold text-slate-700 leading-relaxed">{prompt}</p>
-                </div>
+             <div className="p-4 md:p-5 border-b flex justify-between items-center bg-white shrink-0">
+                <h3 className="font-black text-indigo-600 text-base md:text-lg flex items-center gap-2"><Wand2 size={22}/> Guided Writing Wizard (Step-by-step)</h3>
+                <button onClick={() => setShowGuidedModal(false)} className="hover:bg-slate-100 p-2 rounded-xl text-slate-500 transition-colors"><X size={20}/></button>
              </div>
 
              <div className="p-4 md:p-8 overflow-y-auto flex-1 min-h-0 custom-scrollbar relative">
@@ -2235,8 +2059,7 @@ export default function App() {
                    </div>
                 ) : guidedPlan && guidedPlan.steps ? (
                    <div className="max-w-4xl mx-auto flex flex-col h-full">
-                      
-                      {/* Progress Bar */}
+                       
                       <div className="flex items-center justify-between mb-8 relative">
                          <div className="absolute left-0 top-1/2 w-full h-1 bg-slate-200 -z-10 -translate-y-1/2"></div>
                          {guidedPlan.steps.map((step, idx) => (
@@ -2249,13 +2072,11 @@ export default function App() {
                          ))}
                       </div>
 
-                      {/* Current Step Content */}
                       <div className="bg-white rounded-3xl shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
                          <div className="p-5 md:p-6 border-b border-slate-100 bg-indigo-50/30">
                             <h4 className="text-lg md:text-xl font-black text-slate-800 mb-2">{guidedPlan.steps[guidedStepIndex].title}</h4>
                             <p className="text-slate-600 text-sm">{guidedPlan.steps[guidedStepIndex].instruction}</p>
-                            
-                            {/* Khu vực Gợi ý cấu trúc (CẬP NHẬT MỚI DẠNG GRID) */}
+                             
                             <div className="mt-4 p-4 md:p-5 bg-amber-50 border border-amber-100 rounded-2xl flex flex-col gap-3 shadow-inner">
                                <div className="flex items-center gap-2 mb-1">
                                  <Lightbulb size={20} className="text-amber-500 shrink-0"/>
@@ -2278,14 +2099,12 @@ export default function App() {
                          </div>
 
                          <div className="p-5 md:p-6 flex-1 flex flex-col gap-4 bg-slate-50/50">
-                            {/* Từ vựng bắt buộc (nếu có) */}
                             {guidedPlan.steps[guidedStepIndex].requiredVocab?.length > 0 && (
                                <div className="mb-2">
-                                  <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest block mb-2">💡 Cố gắng vận dụng các cụm từ sau để tối ưu điểm:</span>
+                                  <span className="text-[10px] font-black uppercase text-rose-500 tracking-widest block mb-2">🎯 Hãy thử sức dùng các cụm từ đắt giá này:</span>
                                   <div className="flex flex-wrap gap-2">
                                      {guidedPlan.steps[guidedStepIndex].requiredVocab.map((v, i) => {
                                         const currentText = guidedDrafts[guidedPlan.steps[guidedStepIndex].id] || '';
-                                        // Sử dụng hàm checkVocabUsed thay vì includes thông thường
                                         const isUsed = checkVocabUsed(currentText, v.phrase);
                                         return (
                                            <div key={i} className={`px-3 py-1.5 rounded-lg border flex items-center gap-2 text-sm transition-all duration-300 ${isUsed ? 'bg-emerald-100 border-emerald-300 text-emerald-800 shadow-sm' : 'bg-white border-slate-200 text-slate-500'}`}>
@@ -2299,9 +2118,8 @@ export default function App() {
                                </div>
                             )}
 
-                            {/* Khung soạn thảo cho bước hiện tại */}
                             <textarea 
-                               className="w-full flex-1 min-h-[250px] p-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 transition-all text-slate-700 leading-relaxed resize-none shadow-inner text-base"
+                               className="w-full flex-1 min-h-[150px] p-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 transition-all text-slate-700 leading-relaxed resize-none shadow-inner"
                                placeholder="Gõ đoạn văn tiếng Anh của bạn vào đây..."
                                value={guidedDrafts[guidedPlan.steps[guidedStepIndex].id]}
                                onChange={(e) => setGuidedDrafts({...guidedDrafts, [guidedPlan.steps[guidedStepIndex].id]: e.target.value})}
@@ -2317,7 +2135,7 @@ export default function App() {
                             >
                                <ArrowLeft size={16}/> Quay lại
                             </button>
-                            
+                             
                             {guidedStepIndex < guidedPlan.steps.length - 1 ? (
                                <button 
                                   onClick={() => setGuidedStepIndex(guidedStepIndex + 1)} 
@@ -2328,7 +2146,6 @@ export default function App() {
                             ) : (
                                <button 
                                   onClick={() => {
-                                     // Lắp ráp 4 đoạn lại với nhau
                                      const fullEssay = [guidedDrafts.intro, guidedDrafts.body1, guidedDrafts.body2, guidedDrafts.conclusion]
                                                        .filter(text => text.trim().length > 0)
                                                        .join('\n\n');
@@ -2397,15 +2214,15 @@ export default function App() {
                    </>
                  )}
 
-                 {vocabStep === 'analyzing' && (
+                {vocabStep === 'analyzing' && (
                    <div className="py-12 flex flex-col items-center justify-center text-indigo-600">
                       <Loader2 className="animate-spin mb-4" size={40}/>
                       <p className="font-bold text-sm">AI đang trích xuất cụm từ và tạo câu mẫu...</p>
                    </div>
-                 )}
+                )}
 
-                 {vocabStep === 'reviewed' && (
-                   <div className="space-y-4">
+                {vocabStep === 'reviewed' && (
+                  <div className="space-y-4">
                      <div className="flex gap-3 mb-2">
                         <select className="w-1/2 p-3 border-2 rounded-xl text-sm font-bold bg-white focus:border-emerald-500 outline-none text-slate-700" value={newVocab.topic} onChange={(e) => setNewVocab({...newVocab, topic: e.target.value, subtopic: ''})}>
                            <option value="">-- Chọn Chủ đề --</option>
@@ -2435,8 +2252,8 @@ export default function App() {
                        <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block ml-1 flex items-center gap-1"><BookOpen size={12}/> Câu mẫu 2 (IELTS Band 7.5+)</label>
                        <textarea className="w-full p-3.5 border-2 rounded-xl text-xs font-medium bg-slate-50 focus:bg-white focus:border-emerald-500 outline-none leading-relaxed" rows={3} value={newVocab.example2} onChange={(e) => setNewVocab({...newVocab, example2: e.target.value})} />
                      </div>
-                   </div>
-                 )}
+                  </div>
+                )}
              </div>
               
              <div className="p-5 bg-slate-50 flex justify-end gap-3 border-t shrink-0">
