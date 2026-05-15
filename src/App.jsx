@@ -8,14 +8,14 @@ import {
 } from 'lucide-react';
 
 // ==========================================
-// 🔴 CÔNG TẮC BẬT/TẮT CHẾ ĐỘ PREVIEW
+// 🔴 CÔNG TẮC BẬT/TẮT CHẾ ĐỘ PREVIEW (Chỉnh false khi up lên Vercel)
 // ==========================================
 const IS_PREVIEW_MODE = false; 
 
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, where, getDocs, setDoc } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, setDoc } from 'firebase/firestore';
 
 // --- FIREBASE INITIALIZATION ---
 let app, auth, db, appId;
@@ -38,14 +38,13 @@ if (!IS_PREVIEW_MODE) {
   }
 }
 
-// --- TOPICS VÀ SUBTOPICS ---
+// --- TOPICS VÀ SUBTOPICS (Đã xóa Health, Cập nhật Lifestyle) ---
 const TOPICS = [
   { id: 'general', name: 'General (Đa chủ đề)' },
   { id: 'education', name: 'Education (Giáo dục)' },
   { id: 'environment', name: 'Environment (Môi trường)' },
   { id: 'technology', name: 'Technology (Công nghệ)' },
   { id: 'society', name: 'Society (Xã hội)' },
-  { id: 'health', name: 'Health (Sức khỏe)' },
   { id: 'work', name: 'Work (Công việc & Kinh tế)' },
   { id: 'crime', name: 'Crime (Tội phạm & Luật pháp)' },
   { id: 'media', name: 'Media & Arts (Truyền thông & Nghệ thuật)' },
@@ -78,11 +77,6 @@ const SUBTOPICS = {
     { id: 'soc_urban', name: 'Đô thị hóa, Nhà ở & Giao thông' },
     { id: 'soc_equality', name: 'Bất bình đẳng & Phúc lợi xã hội' }
   ],
-  health: [
-    { id: 'health_diet', name: 'Dinh dưỡng, Thể thao & Lối sống' },
-    { id: 'health_gov', name: 'Trách nhiệm phòng bệnh & Y tế công' },
-    { id: 'health_mental', name: 'Sức khỏe tinh thần & Áp lực' }
-  ],
   work: [
     { id: 'work_balance', name: 'Cân bằng cuộc sống & Áp lực' },
     { id: 'work_environment', name: 'Môi trường làm việc & Lương thưởng' },
@@ -98,11 +92,11 @@ const SUBTOPICS = {
     { id: 'media_arts', name: 'Nghệ thuật, Bảo tàng & Nghệ sĩ' }
   ],
   lifestyle: [
-    { id: 'life_stress', name: 'Áp lực & Cân bằng cuộc sống' },
-    { id: 'life_finance', name: 'Quản lý tài chính & Tiêu dùng' },
-    { id: 'life_family', name: 'Cấu trúc gia đình & Nơi ở' },
-    { id: 'life_environment', name: 'Môi trường sống' },
-    { id: 'life_personality', name: 'Tính cách & Hành vi con người' }
+    { id: 'life_family_rel', name: 'Gia đình, Nuôi dạy con & Các thế hệ' },
+    { id: 'life_finance_shopping', name: 'Tài chính cá nhân & Chủ nghĩa tiêu dùng' },
+    { id: 'life_health_recreation', name: 'Thói quen sức khỏe & Giải trí' },
+    { id: 'life_personal_values', name: 'Giá trị sống, Tính cách & Lựa chọn cá nhân' },
+    { id: 'life_modern_issues', name: 'Không gian sống & Các vấn đề lối sống hiện đại' }
   ]
 };
 
@@ -111,8 +105,7 @@ const SAMPLE_PROMPTS = {
   env_climate: "Global warming is one of the most serious issues that the world is facing today. What are the causes of global warming and what measures can governments and individuals take to tackle the issue?",
   tech_ai: "Some people believe that artificial intelligence will eventually replace human workers in most industries. To what extent do you agree or disagree?",
   soc_culture: "The increase in international travel and business has led to a situation where people are adopting a single global culture. Do you think the advantages of this outweigh the disadvantages?",
-  health_gov: "Some people say that it is the responsibility of individuals to take care of their own health and diet. Others think that governments should make sure that their citizens are healthy. Discuss both views and give your opinion.",
-  life_stress: "Stress: What are the factors that cause stress and how to cope with stress?"
+  life_health_recreation: "Stress: What are the factors that cause stress and how to cope with stress?"
 };
 
 // --- GEMINI API HELPERS ---
@@ -227,27 +220,35 @@ const checkVocabUsed = (text, phrase) => {
     // Kiểm tra xem phần lớn các từ khóa trong phrase có nằm trong text hay không (Bỏ qua 's', 'ed', 'ing')
     return phraseWords.every(pw => {
         if(pw.length <= 3) return textWords.includes(pw);
-        // Cắt đuôi để lấy gốc từ (stem)
         let stem = pw;
         if (pw.endsWith('ing')) stem = pw.slice(0, -3);
         else if (pw.endsWith('ed')) stem = pw.slice(0, -2);
         else if (pw.endsWith('es')) stem = pw.slice(0, -2);
         else if (pw.endsWith('s')) stem = pw.slice(0, -1);
         else stem = pw.substring(0, pw.length - 1);
-        
         return textWords.some(tw => tw.includes(stem));
     });
 };
 
 export default function App() {
-  // --- AUTH & PERMISSION STATES ---
+  // --- AUTH STATES ---
   const [user, setUser] = useState(IS_PREVIEW_MODE ? { email: 'tester@preview.com', uid: 'mock-user-123' } : null);
   const [isAuthorized, setIsAuthorized] = useState(IS_PREVIEW_MODE ? true : null); 
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // Thống kê chuỗi ngày học (Streak)
+  // --- 🔥 VÁ LỖI 1: Lắng nghe trạng thái đăng nhập (Giúp Vercel không bị hiện Guest) ---
+  useEffect(() => {
+    if (!IS_PREVIEW_MODE && auth) {
+      const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+        setUser(currentUser);
+      });
+      return () => unsubscribe();
+    }
+  }, []);
+
+  // --- Thống kê chuỗi ngày học (Streak) ---
   const [userStats, setUserStats] = useState(IS_PREVIEW_MODE ? { currentStreak: 4, longestStreak: 12, lastWriteDate: new Date(Date.now() - 86400000).toLocaleDateString('en-CA') } : { currentStreak: 0, longestStreak: 0, lastWriteDate: null });
 
   const [activeTab, setActiveTab] = useState('practice'); 
@@ -305,6 +306,35 @@ export default function App() {
     { id: 'ev1', prompt: 'Sample prompt 1', wordCount: 250, target: 'full', overallBand: 6.5, trScore: 6.0, ccScore: 6.0, lrScore: 7.0, graScore: 7.0, createdAt: new Date().toISOString() }
   ] : []);
   
+  // --- 🔥 VÁ LỖI 2: Đồng bộ hóa dữ liệu (Real-time fetching) từ Firebase xuống giao diện ---
+  useEffect(() => {
+    if (IS_PREVIEW_MODE || !user || !db) return;
+    
+    const unsubSamples = onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'sample_essays'), (snapshot) => {
+      setSampleEssays(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    
+    const unsubVocab = onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'vocabulary'), (snapshot) => {
+      setVocabularies(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    const unsubEvals = onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'evaluations'), (snapshot) => {
+      setEvaluationsHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    const unsubStats = onSnapshot(doc(db, 'artifacts', appId, 'users', user.uid, 'user_info', 'stats'), (docSnap) => {
+      if (docSnap.exists()) setUserStats(docSnap.data());
+    });
+
+    return () => {
+      unsubSamples();
+      unsubVocab();
+      unsubEvals();
+      unsubStats();
+    };
+  }, [user]);
+  // -----------------------------------------------------------------------------------------
+
   const [mindMapData, setMindMapData] = useState(null);
   const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
   const [suggestedPromptVocabs, setSuggestedPromptVocabs] = useState([]);
@@ -611,6 +641,7 @@ export default function App() {
   const handleConfirmSaveVocab = async () => {
     const targetPhrase = newVocab.basePhrase || newVocab.phrase;
     if (!targetPhrase) return showToast("Vui lòng nhập từ vựng!", "error");
+    if (!user && !IS_PREVIEW_MODE) return showToast("Bạn cần đăng nhập để lưu từ vựng!", "error");
     
     try {
       if (newVocab.id) {
@@ -818,9 +849,9 @@ export default function App() {
       const evaluation = parseGeminiResponse(result.candidates[0].content.parts[0].text);
       setEvaluationResult(evaluation);
       
-      if (!IS_PREVIEW_MODE) {
-         await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'evaluations'), { prompt, wordCount, target: writingTarget, overallBand: evaluation.overallBand, createdAt: new Date().toISOString() });
-      } else {
+      if (!IS_PREVIEW_MODE && user) {
+         await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'evaluations'), { prompt, wordCount, target: writingTarget, overallBand: evaluation.overallBand, trScore: evaluation.trScore, ccScore: evaluation.ccScore, lrScore: evaluation.lrScore, graScore: evaluation.graScore, createdAt: new Date().toISOString() });
+      } else if (IS_PREVIEW_MODE) {
          setEvaluationsHistory(prev => [{ id: Date.now().toString(), prompt, wordCount, target: writingTarget, overallBand: evaluation.overallBand, trScore: evaluation.trScore, ccScore: evaluation.ccScore, lrScore: evaluation.lrScore, graScore: evaluation.graScore, createdAt: new Date().toISOString() }, ...prev]);
       }
 
@@ -842,7 +873,7 @@ export default function App() {
          const newLongest = Math.max(userStats.longestStreak || 0, newStreak);
          const newStats = { currentStreak: newStreak, longestStreak: newLongest, lastWriteDate: today };
 
-         if (!IS_PREVIEW_MODE) {
+         if (!IS_PREVIEW_MODE && user) {
             await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'user_info', 'stats'), newStats);
          } else {
             setUserStats(newStats);
@@ -952,7 +983,7 @@ export default function App() {
       if (IS_PREVIEW_MODE) {
           if (deleteConfirm.col === 'vocabulary') setVocabularies(prev => prev.filter(v => v.id !== deleteConfirm.id));
           if (deleteConfirm.col === 'sample_essays') setSampleEssays(prev => prev.filter(s => s.id !== deleteConfirm.id));
-      } else {
+      } else if (user) {
           await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, deleteConfirm.col, deleteConfirm.id)); 
       }
       setDeleteConfirm(null); 
@@ -979,7 +1010,7 @@ export default function App() {
           if (IS_PREVIEW_MODE) {
               setSampleEssays(prev => prev.map(s => s.id === newSample.id ? { ...s, ...safeData } : s));
               showToast("Đã cập nhật (MOCK)!", "success"); 
-          } else {
+          } else if (user) {
               await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'sample_essays', newSample.id), safeData); 
               showToast("Đã cập nhật!", "success"); 
           }
@@ -987,7 +1018,7 @@ export default function App() {
           if (IS_PREVIEW_MODE) {
               setSampleEssays(prev => [{ id: Date.now().toString(), ...safeData, createdAt: new Date().toISOString() }, ...prev]);
               showToast("Đã thêm (MOCK)!", "success"); 
-          } else {
+          } else if (user) {
               await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'sample_essays'), { ...safeData, createdAt: new Date().toISOString() }); 
               showToast("Đã thêm!", "success");
           }
@@ -997,6 +1028,8 @@ export default function App() {
   };
   const processImportBackup = async () => {
     if (!importDataString.trim()) return showToast("Vui lòng nhập JSON.", "error");
+    if (!user && !IS_PREVIEW_MODE) return showToast("Vui lòng đăng nhập để khôi phục dữ liệu.", "error");
+    
     setIsRestoring(true);
     try {
       const data = JSON.parse(importDataString);
@@ -1048,11 +1081,22 @@ export default function App() {
 
         <div className="bg-slate-800 px-3 py-1.5 rounded-lg flex flex-col hidden sm:flex">
            <span className="text-[9px] text-slate-400 uppercase font-black">Học viên</span>
-           <span className="text-xs text-white font-medium truncate max-w-[120px]">{user?.email || 'Guest'}</span>
+           <span className="text-xs text-white font-medium truncate max-w-[120px]">
+             {user ? (user.email || 'User') : 'Guest'}
+           </span>
         </div>
-        <button onClick={() => setShowApiKeyModal(true)} className="bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Đổi API Key"><Key size={14} /></button>
-        <button onClick={() => setActiveTab('backup')} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Backup & Restore"><AlertTriangle size={14} /></button>
-        <button onClick={handleLogout} className="bg-rose-500/20 hover:bg-rose-500 hover:text-white text-rose-400 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Đăng xuất"><LogOut size={14} /></button>
+        
+        {!user && !IS_PREVIEW_MODE ? (
+           <button onClick={handleLogin} disabled={isLoggingIn} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors">
+              {isLoggingIn ? <Loader2 size={14} className="animate-spin" /> : "Đăng nhập"}
+           </button>
+        ) : (
+           <>
+             <button onClick={() => setShowApiKeyModal(true)} className="bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Đổi API Key"><Key size={14} /></button>
+             <button onClick={() => setActiveTab('backup')} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Backup & Restore"><AlertTriangle size={14} /></button>
+             <button onClick={handleLogout} className="bg-rose-500/20 hover:bg-rose-500 hover:text-white text-rose-400 px-2 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-colors" title="Đăng xuất"><LogOut size={14} /></button>
+           </>
+        )}
       </div>
     </div>
   );
