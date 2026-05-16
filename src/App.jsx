@@ -10,7 +10,7 @@ import {
 // ==========================================
 // 🔴 CÔNG TẮC BẬT/TẮT CHẾ ĐỘ PREVIEW (Chỉnh false khi up lên Vercel)
 // ==========================================
-const IS_PREVIEW_MODE = false; 
+const IS_PREVIEW_MODE = false;
 
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from 'firebase/app';
@@ -86,9 +86,10 @@ const SUBTOPICS = {
     { id: 'soc_equality', name: 'Bất bình đẳng & Phúc lợi xã hội' }
   ],
   work: [
-    { id: 'work_balance', name: 'Cân bằng cuộc sống & Áp lực' },
-    { id: 'work_environment', name: 'Môi trường làm việc & Lương thưởng' },
-    { id: 'work_future', name: 'Việc làm tương lai & Thất nghiệp' }
+    { id: 'work_career_choice', name: 'Lựa chọn nghề nghiệp & Phát triển kỹ năng' },
+    { id: 'work_environment', name: 'Môi trường làm việc, Tuyển dụng & Phúc lợi' },
+    { id: 'work_balance', name: 'Cân bằng cuộc sống & Mối quan hệ công sở' },
+    { id: 'work_future_issues', name: 'Thị trường lao động, Thất nghiệp & Bình đẳng' }
   ],
   crime: [
     { id: 'crime_punishment', name: 'Hình phạt & Hệ thống nhà tù' },
@@ -116,6 +117,7 @@ const SAMPLE_PROMPTS = {
   env_climate: "Global warming is one of the most serious issues that the world is facing today. What are the causes of global warming and what measures can governments and individuals take to tackle the issue?",
   tech_ai: "Some people believe that artificial intelligence will eventually replace human workers in most industries. To what extent do you agree or disagree?",
   health_diet_fitness: "In some countries, the average weight of people is increasing and their levels of health and fitness are decreasing. What do you think are the causes of these problems and what measures could be taken to solve them?",
+  work_career_choice: "When choosing a job, the salary is the most important consideration. To what extent do you agree or disagree?",
   soc_culture: "The increase in international travel and business has led to a situation where people are adopting a single global culture. Do you think the advantages of this outweigh the disadvantages?",
   life_health_recreation: "Stress: What are the factors that cause stress and how to cope with stress?",
   media_news_influence: "The news media have become too much influence in people's lives today and this is a negative development. To what extent do you agree or disagree?"
@@ -144,7 +146,7 @@ async function fetchWithRetry(options, retries = 3) {
                             { id: "body2", title: "3. Thân bài 2", instruction: "Viết body 2", structures: [{name: "Cách 1", hint: "Hint 1"}], requiredVocab: [] },
                             { id: "conclusion", title: "4. Kết bài", instruction: "Viết kết bài", structures: [{name: "Cách 1", hint: "Hint 1"}], requiredVocab: [] }
                         ],
-                        options: [{ phrase: "environmental protection", band: "7.0" }, { phrase: "safeguarding the environment", band: "8.0" }]
+                        options: [{ phrase: "career progression", band: "7.0" }, { phrase: "professional advancement", band: "8.0" }]
                     }) 
                 }] 
             } 
@@ -303,11 +305,11 @@ export default function App() {
   const [evaluationResult, setEvaluationResult] = useState(null);
   
   const [sampleEssays, setSampleEssays] = useState(IS_PREVIEW_MODE ? [
-    { id: 's1', topic: 'health', subtopic: 'health_care_system', prompt: 'Healthcare should always be funded by governments, and it should always be free for people to use. To what extent do you agree or disagree?', content: 'Some people think that governments should provide free healthcare for everyone...' },
-    { id: 's2', topic: 'health', subtopic: 'health_diet_fitness', prompt: 'More people today are overweight than ever before. What are the primary causes of this? What measures can be taken to overcome this epidemic?', content: 'It is widely acknowledged that there has been a drastic increase in the number of overweight people...' }
+    { id: 's1', topic: 'work', subtopic: 'work_career_choice', prompt: 'When choosing a job, the salary is the most important consideration. To what extent do you agree or disagree?', content: 'Some people believe that money is the key consideration when deciding on a career...' },
+    { id: 's2', topic: 'work', subtopic: 'work_future_issues', prompt: 'Today, more school leavers are unable to find jobs. Causes and solutions?', content: 'It is true that there is an increasing number of unemployed young adults across the globe...' }
   ] : []);
   const [vocabularies, setVocabularies] = useState(IS_PREVIEW_MODE ? [
-    { id: 'v1', topicId: 'health', subtopicId: 'health_diet_fitness', phrase: 'sedentary lifestyle', translation: 'lối sống ít vận động', examples: ['A **sedentary lifestyle** is one of the primary causes of obesity.', 'Many office workers lead a **sedentary lifestyle** due to their jobs.'] }
+    { id: 'v1', topicId: 'work', subtopicId: 'work_career_choice', phrase: 'job satisfaction', translation: 'sự hài lòng trong công việc', examples: ['High **job satisfaction** is crucial for long-term career growth.', 'Many employees value **job satisfaction** over a high salary.'] }
   ] : []);
   const [evaluationsHistory, setEvaluationsHistory] = useState(IS_PREVIEW_MODE ? [
     { id: 'ev1', prompt: 'Sample prompt 1', wordCount: 250, target: 'full', overallBand: 6.5, trScore: 6.0, ccScore: 6.0, lrScore: 7.0, graScore: 7.0, createdAt: new Date().toISOString() }
