@@ -44,6 +44,7 @@ const TOPICS = [
   { id: 'education', name: 'Education (Giáo dục)' },
   { id: 'environment', name: 'Environment (Môi trường)' },
   { id: 'technology', name: 'Technology (Công nghệ)' },
+  { id: 'health', name: 'Health (Y tế & Sức khỏe)' },
   { id: 'society', name: 'Society (Xã hội)' },
   { id: 'work', name: 'Work (Công việc & Kinh tế)' },
   { id: 'crime', name: 'Crime (Tội phạm & Luật pháp)' },
@@ -66,10 +67,17 @@ const SUBTOPICS = {
     { id: 'env_responsibility', name: 'Trách nhiệm cá nhân vs Chính phủ' }
   ],
   technology: [
-    { id: 'tech_ai', name: 'Trí tuệ nhân tạo & Tự động hóa' },
     { id: 'tech_comm', name: 'Giao tiếp & Mạng xã hội' },
-    { id: 'tech_lifestyle', name: 'Tác động đời sống & Quyền riêng tư' },
-    { id: 'tech_space', name: 'Khám phá vũ trụ' }
+    { id: 'tech_ai', name: 'Trí tuệ nhân tạo & Tự động hóa' },
+    { id: 'tech_space', name: 'Khám phá vũ trụ' },
+    { id: 'tech_lifestyle', name: 'Tác động đời sống & Thói quen' },
+    { id: 'tech_education', name: 'Công nghệ với Trẻ em & Trí não' }
+  ],
+  health: [
+    { id: 'health_diet_fitness', name: 'Dinh dưỡng, Thể chất & Lối sống' },
+    { id: 'health_care_system', name: 'Hệ thống y tế & Phúc lợi xã hội' },
+    { id: 'health_mental_child', name: 'Sức khỏe tinh thần & Phát triển của trẻ' },
+    { id: 'health_ethics_substances', name: 'Y đức, Nghiên cứu & Chất gây nghiện' }
   ],
   society: [
     { id: 'soc_culture', name: 'Văn hóa, Lịch sử & Toàn cầu hóa' },
@@ -107,6 +115,7 @@ const SAMPLE_PROMPTS = {
   edu_purpose: "Some people believe that the main aim of university education is to help graduates find better jobs, while others think that university education has much wider benefits for individuals and society. Discuss both views and give your opinion.",
   env_climate: "Global warming is one of the most serious issues that the world is facing today. What are the causes of global warming and what measures can governments and individuals take to tackle the issue?",
   tech_ai: "Some people believe that artificial intelligence will eventually replace human workers in most industries. To what extent do you agree or disagree?",
+  health_diet_fitness: "In some countries, the average weight of people is increasing and their levels of health and fitness are decreasing. What do you think are the causes of these problems and what measures could be taken to solve them?",
   soc_culture: "The increase in international travel and business has led to a situation where people are adopting a single global culture. Do you think the advantages of this outweigh the disadvantages?",
   life_health_recreation: "Stress: What are the factors that cause stress and how to cope with stress?",
   media_news_influence: "The news media have become too much influence in people's lives today and this is a negative development. To what extent do you agree or disagree?"
@@ -294,11 +303,11 @@ export default function App() {
   const [evaluationResult, setEvaluationResult] = useState(null);
   
   const [sampleEssays, setSampleEssays] = useState(IS_PREVIEW_MODE ? [
-    { id: 's1', topic: 'media', subtopic: 'media_news_influence', prompt: 'The news media have become too much influence in people\'s lives today and this is a negative development. To what extent do you agree or disagree?', content: 'Some people believe that the news media has too much of a bearing on public opinion...' },
-    { id: 's2', topic: 'lifestyle', subtopic: 'life_health_recreation', prompt: 'Today many children spend a lot of time playing computer games and little time on sports. Why is it? Is it a positive or negative development?', content: 'It is true that many young children spend a significant amount of time playing video games instead of playing sports...' }
+    { id: 's1', topic: 'health', subtopic: 'health_care_system', prompt: 'Healthcare should always be funded by governments, and it should always be free for people to use. To what extent do you agree or disagree?', content: 'Some people think that governments should provide free healthcare for everyone...' },
+    { id: 's2', topic: 'health', subtopic: 'health_diet_fitness', prompt: 'More people today are overweight than ever before. What are the primary causes of this? What measures can be taken to overcome this epidemic?', content: 'It is widely acknowledged that there has been a drastic increase in the number of overweight people...' }
   ] : []);
   const [vocabularies, setVocabularies] = useState(IS_PREVIEW_MODE ? [
-    { id: 'v1', topicId: 'media', subtopicId: 'media_ads_impact', phrase: 'consumerist mentality', translation: 'tâm lý chủ nghĩa tiêu dùng', examples: ['Advertising can produce a **consumerist mentality**.', 'A **consumerist mentality** is bad for the moral and spiritual life.'] }
+    { id: 'v1', topicId: 'health', subtopicId: 'health_diet_fitness', phrase: 'sedentary lifestyle', translation: 'lối sống ít vận động', examples: ['A **sedentary lifestyle** is one of the primary causes of obesity.', 'Many office workers lead a **sedentary lifestyle** due to their jobs.'] }
   ] : []);
   const [evaluationsHistory, setEvaluationsHistory] = useState(IS_PREVIEW_MODE ? [
     { id: 'ev1', prompt: 'Sample prompt 1', wordCount: 250, target: 'full', overallBand: 6.5, trScore: 6.0, ccScore: 6.0, lrScore: 7.0, graScore: 7.0, createdAt: new Date().toISOString() }
@@ -1213,7 +1222,7 @@ export default function App() {
               <div className="px-2 py-1 rounded bg-white border text-xs font-bold">{wordCount} từ</div>
               <div className="bg-white px-2 py-1 rounded border flex items-center gap-1.5 text-xs font-mono font-bold text-slate-700">
                   {formatTime(timeRemaining)}
-                  <button onClick={() => setIsTimerRunning(!isTimerRunning)} className="p-0.5 hover:textemerald-600 transition-colors">{isTimerRunning ? <Pause size={12}/> : <Play size={12}/>}</button>
+                  <button onClick={() => setIsTimerRunning(!isTimerRunning)} className="p-0.5 hover:text-emerald-600 transition-colors">{isTimerRunning ? <Pause size={12}/> : <Play size={12}/>}</button>
                   <button onClick={() => { setIsTimerRunning(false); setTimeRemaining(40 * 60); }} className="p-0.5 text-slate-400 hover:text-slate-600 transition-colors" title="Reset thời gian"><RotateCcw size={12}/></button>
               </div>
               <div className="px-2 py-1 rounded bg-indigo-50 border border-indigo-100 flex items-center gap-1 text-xs font-bold text-indigo-700">
