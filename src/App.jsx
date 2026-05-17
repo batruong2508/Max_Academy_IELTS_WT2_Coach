@@ -129,43 +129,50 @@ const SAMPLE_PROMPTS = {
 // --- GEMINI API HELPERS ---
 const MODEL_NAME = "gemini-2.5-flash"; 
 
-async function fetchWithRetry(options, retries = 3) {
+async function fetchWithRetry(options, retries = 2) {
   if (IS_PREVIEW_MODE) {
-      // Mock Data for Preview Mode
-      const promptText = options.body.includes("Evaluate") ? "Evaluate" : options.body.includes("Guided") ? "Guided" : "Default";
-      return { 
-        candidates: [{ 
-            content: { 
-                parts: [{ 
-                    text: JSON.stringify({ 
-                        message: "Đây là dữ liệu ảo vì đang ở chế độ Preview Mode.",
-                        overallBand: 7.5, trScore: 7.0, ccScore: 8.0, lrScore: 7.0, graScore: 7.5,
-                        trComment: "Khá tốt.", ccComment: "Mượt mà.", lrComment: "Từ vựng ổn.", graComment: "Ngữ pháp tốt.",
-                        detailedCorrections: [], polishedEssay: "Mock polished essay.",
-                        centralIdea: "Mock Central Idea", view40: { title: "View 40", ideas: [{letter: 'E', category: 'Economic', keyword: 'Money'}] }, view60: { title: "View 60", ideas: [{letter: 'S', category: 'Social', keyword: 'People'}] },
-                        steps: [
-                            { id: "intro", title: "1. Mở bài", instruction: "Viết mở bài", structures: [{name: "Cách 1", hint: "Hint 1"}], requiredVocab: [{phrase: "environmental impact", meaning: "tác động môi trường"}] },
-                            { id: "body1", title: "2. Thân bài 1", instruction: "Viết body 1", structures: [{name: "Cách 1", hint: "Hint 1"}], requiredVocab: [{phrase: "detrimental effect", meaning: "ảnh hưởng xấu"}] },
-                            { id: "body2", title: "3. Thân bài 2", instruction: "Viết body 2", structures: [{name: "Cách 1", hint: "Hint 1"}], requiredVocab: [] },
-                            { id: "conclusion", title: "4. Kết bài", instruction: "Viết kết bài", structures: [{name: "Cách 1", hint: "Hint 1"}], requiredVocab: [] }
-                        ],
-                        options: [{ phrase: "environmental protection", band: "7.0" }, { phrase: "safeguarding the environment", band: "8.0" }]
-                    }) 
-                }] 
-            } 
-        }] 
-      }; 
+      return new Promise(resolve => setTimeout(() => {
+          resolve({ 
+            candidates: [{ 
+                content: { 
+                    parts: [{ 
+                        text: JSON.stringify({ 
+                            message: "Đây là dữ liệu ảo vì đang ở chế độ Preview Mode.",
+                            overallBand: 7.5, trScore: 7.0, ccScore: 8.0, lrScore: 7.0, graScore: 7.5,
+                            trComment: "Khá tốt.", ccComment: "Mượt mà.", lrComment: "Từ vựng ổn.", graComment: "Ngữ pháp tốt.",
+                            detailedCorrections: [], polishedEssay: "Mock polished essay.",
+                            centralIdea: "Mock Central Idea", view40: { title: "View 40", ideas: [{letter: 'E', category: 'Economic', keyword: 'Money'}] }, view60: { title: "View 60", ideas: [{letter: 'S', category: 'Social', keyword: 'People'}] },
+                            steps: [
+                                { id: "intro", title: "1. Mở bài", instruction: "Viết mở bài", structures: [{name: "Cách 1", hint: "Hint 1"}], requiredVocab: [{phrase: "environmental impact", meaning: "tác động môi trường"}] },
+                                { id: "body1", title: "2. Thân bài 1", instruction: "Viết body 1", structures: [{name: "Cách 1", hint: "Hint 1"}], requiredVocab: [{phrase: "detrimental effect", meaning: "ảnh hưởng xấu"}] },
+                                { id: "body2", title: "3. Thân bài 2", instruction: "Viết body 2", structures: [{name: "Cách 1", hint: "Hint 1"}], requiredVocab: [] },
+                                { id: "conclusion", title: "4. Kết bài", instruction: "Viết kết bài", structures: [{name: "Cách 1", hint: "Hint 1"}], requiredVocab: [] }
+                            ],
+                            options: [{ phrase: "environmental protection", band: "7.0" }, { phrase: "safeguarding the environment", band: "8.0" }]
+                        }) 
+                    }] 
+                } 
+            }] 
+          });
+      }, 800)); 
   }
 
   const apiKey = localStorage.getItem('gemini_api_key');
   if (!apiKey) throw new Error("MISSING_API_KEY");
   
-  const delays = [2000, 4000, 6000];
+  const delays = [2000, 4000];
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey.trim()}`;
   
-  for (let i = 0; i < retries; i++) {
+  for (let i = 0; i <= retries; i++) {
+    let timeoutId;
     try {
-      const response = await fetch(url, options);
+      const controller = new AbortController();
+      // Timeout 25 giây để tránh treo UI
+      timeoutId = setTimeout(() => controller.abort(), 25000); 
+      
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
         if (response.status === 400 || response.status === 403) throw new Error("INVALID_API_KEY");
         if (response.status === 429) throw new Error("QUOTA_EXCEEDED");
@@ -175,37 +182,49 @@ async function fetchWithRetry(options, retries = 3) {
       }
       return await response.json();
     } catch (error) {
-      if (error.message === "INVALID_API_KEY" || 
+      if (timeoutId) clearTimeout(timeoutId);
+      
+      if (error.name === 'AbortError') {
+         if (i === retries) throw new Error("TIMEOUT");
+      } else if (error.message === "INVALID_API_KEY" || 
           error.message === "MISSING_API_KEY" || 
           error.message === "QUOTA_EXCEEDED" || 
           error.message === "MODEL_NOT_FOUND") {
         throw error;
+      } else {
+         if (i === retries) throw error; 
       }
-      if (i === retries - 1) throw error; 
-      await new Promise(res => setTimeout(res, delays[i]));
+      await new Promise(res => setTimeout(res, delays[i] || 2000));
     }
   }
 }
 
+// Hàm trích xuất JSON mới cực kỳ mạnh mẽ, chống lỗi rác văn bản từ AI
 const parseGeminiResponse = (text) => {
-  let cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-  try { return JSON.parse(cleaned); } catch (e) {
-    let tempCleaned = cleaned;
-    while (tempCleaned.length > Math.max(0, cleaned.length - 20)) {
-      tempCleaned = tempCleaned.slice(0, -1).trim();
-      try { return JSON.parse(tempCleaned); } catch (err) {}
+  try {
+    let cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    const firstBracket = cleaned.indexOf('[');
+    const lastBracket = cleaned.lastIndexOf(']');
+    
+    let start = -1;
+    let end = -1;
+    
+    // Ưu tiên object {...} hoặc array [...]
+    if (firstBrace !== -1 && lastBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+       start = firstBrace; end = lastBrace;
+    } else if (firstBracket !== -1 && lastBracket !== -1) {
+       start = firstBracket; end = lastBracket;
     }
-    try {
-      let noNewlines = cleaned.replace(/[\n\r\t]+/g, ' ');
-      return JSON.parse(noNewlines);
-    } catch (err) {
-      let tempNoNewlines = noNewlines;
-      while (tempNoNewlines.length > Math.max(0, noNewlines.length - 20)) {
-        tempNoNewlines = tempNoNewlines.slice(0, -1).trim();
-        try { return JSON.parse(tempNoNewlines); } catch (innerErr) {}
-      }
+
+    if (start !== -1 && end !== -1) {
+       cleaned = cleaned.substring(start, end + 1);
     }
-    throw e;
+    
+    return JSON.parse(cleaned);
+  } catch (e) {
+    throw new Error("JSON_PARSE_FAILED");
   }
 };
 
@@ -485,6 +504,10 @@ export default function App() {
     if (error.message === "INVALID_API_KEY" || error.message === "MISSING_API_KEY") {
       setShowApiKeyModal(true);
       showToast("API Key không hợp lệ! Nếu copy, hãy chú ý tránh dư dấu cách.", "error", 6000);
+    } else if (error.message === "TIMEOUT") {
+      showToast("⏳ Mạng chậm hoặc AI phản hồi quá lâu. Vui lòng thử lại!", "error", 5000);
+    } else if (error.message === "JSON_PARSE_FAILED") {
+      showToast("⚠️ AI trả về dữ liệu không đúng định dạng. Vui lòng bấm thử lại!", "error", 5000);
     } else if (error.message === "QUOTA_EXCEEDED") {
       showToast("⚠️ Thao tác quá nhanh (Lỗi 429). Hãy đợi khoảng 1 phút để AI hồi sức nhé!", "error", 6000);
     } else if (error.message === "SERVER_BUSY") {
@@ -794,7 +817,12 @@ export default function App() {
         body: JSON.stringify({ contents: [{ parts: [{ text: "Generate Guided Writing Plan" }] }], systemInstruction: { parts: [{ text: systemInstruction }] }, generationConfig: { responseMimeType: "application/json" } })
       });
       setGuidedPlan(parseGeminiResponse(result.candidates[0].content.parts[0].text));
-    } catch (error) { handleApiError(error); setShowGuidedModal(false); } finally { setIsGeneratingGuide(false); }
+    } catch (error) { 
+        handleApiError(error); 
+        setShowGuidedModal(false); 
+    } finally { 
+        setIsGeneratingGuide(false); 
+    }
   };
 
   const handleParaphrase = async () => { 
