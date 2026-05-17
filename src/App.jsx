@@ -10,7 +10,7 @@ import {
 // ==========================================
 // 🔴 CÔNG TẮC BẬT/TẮT CHẾ ĐỘ PREVIEW (Chỉnh false khi up lên Vercel)
 // ==========================================
-const IS_PREVIEW_MODE = false;
+const IS_PREVIEW_MODE = false; 
 
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from 'firebase/app';
@@ -61,10 +61,10 @@ const SUBTOPICS = {
     { id: 'edu_policy', name: 'Chính sách trường học & Tài chính' }
   ],
   environment: [
-    { id: 'env_climate', name: 'Biến đổi khí hậu & Năng lượng' },
+    { id: 'env_climate', name: 'Biến đổi khí hậu, Năng lượng & Tài nguyên' },
     { id: 'env_pollution', name: 'Ô nhiễm & Xử lý rác thải' },
     { id: 'env_animal', name: 'Bảo tồn động vật & Sinh thái' },
-    { id: 'env_responsibility', name: 'Trách nhiệm cá nhân vs Chính phủ' }
+    { id: 'env_responsibility', name: 'Trách nhiệm: Cá nhân, Chính phủ & Toàn cầu' }
   ],
   technology: [
     { id: 'tech_comm', name: 'Giao tiếp & Mạng xã hội' },
@@ -146,7 +146,7 @@ async function fetchWithRetry(options, retries = 3) {
                             { id: "body2", title: "3. Thân bài 2", instruction: "Viết body 2", structures: [{name: "Cách 1", hint: "Hint 1"}], requiredVocab: [] },
                             { id: "conclusion", title: "4. Kết bài", instruction: "Viết kết bài", structures: [{name: "Cách 1", hint: "Hint 1"}], requiredVocab: [] }
                         ],
-                        options: [{ phrase: "career progression", band: "7.0" }, { phrase: "professional advancement", band: "8.0" }]
+                        options: [{ phrase: "environmental protection", band: "7.0" }, { phrase: "safeguarding the environment", band: "8.0" }]
                     }) 
                 }] 
             } 
@@ -305,11 +305,11 @@ export default function App() {
   const [evaluationResult, setEvaluationResult] = useState(null);
   
   const [sampleEssays, setSampleEssays] = useState(IS_PREVIEW_MODE ? [
-    { id: 's1', topic: 'work', subtopic: 'work_career_choice', prompt: 'When choosing a job, the salary is the most important consideration. To what extent do you agree or disagree?', content: 'Some people believe that money is the key consideration when deciding on a career...' },
-    { id: 's2', topic: 'work', subtopic: 'work_future_issues', prompt: 'Today, more school leavers are unable to find jobs. Causes and solutions?', content: 'It is true that there is an increasing number of unemployed young adults across the globe...' }
+    { id: 's1', topic: 'environment', subtopic: 'env_climate', prompt: 'Global warming is one of the most serious issues that the world is facing today. What are the causes of global warming and what measures can governments and individuals take to tackle the issue?', content: 'Among the dangers posing to humankind, global warming and rising sea levels seem to be the two of the most imminent...' },
+    { id: 's2', topic: 'work', subtopic: 'work_career_choice', prompt: 'When choosing a job, the salary is the most important consideration. To what extent do you agree or disagree?', content: 'Some people believe that money is the key consideration when deciding on a career...' }
   ] : []);
   const [vocabularies, setVocabularies] = useState(IS_PREVIEW_MODE ? [
-    { id: 'v1', topicId: 'work', subtopicId: 'work_career_choice', phrase: 'job satisfaction', translation: 'sự hài lòng trong công việc', examples: ['High **job satisfaction** is crucial for long-term career growth.', 'Many employees value **job satisfaction** over a high salary.'] }
+    { id: 'v1', topicId: 'environment', subtopicId: 'env_climate', phrase: 'depletion of natural resources', translation: 'sự cạn kiệt tài nguyên thiên nhiên', examples: ['The **depletion of natural resources** is accelerating at an alarming rate.', 'We must find alternatives to prevent the further **depletion of natural resources** allow future generations to thrive.'] }
   ] : []);
   const [evaluationsHistory, setEvaluationsHistory] = useState(IS_PREVIEW_MODE ? [
     { id: 'ev1', prompt: 'Sample prompt 1', wordCount: 250, target: 'full', overallBand: 6.5, trScore: 6.0, ccScore: 6.0, lrScore: 7.0, graScore: 7.0, createdAt: new Date().toISOString() }
@@ -778,7 +778,7 @@ export default function App() {
         },
         {
           "id": "conclusion", "title": "4. Kết bài", 
-          "instruction": "Tóm tắt và khẳng định lại quan điểm.", 
+          "instruction": "Tóm tắt and khẳng định lại quan điểm.", 
           "structures": [{"name": "Cấu trúc 1", "hint": "..."}, {"name": "Cấu trúc 2", "hint": "..."}],
           "requiredVocab": []
         }
