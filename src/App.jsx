@@ -80,10 +80,12 @@ const SUBTOPICS = {
     { id: 'health_ethics_substances', name: 'Y đức, Nghiên cứu & Chất gây nghiện' }
   ],
   society: [
-    { id: 'soc_culture', name: 'Văn hóa, Lịch sử & Toàn cầu hóa' },
-    { id: 'soc_age', name: 'Khoảng cách thế hệ & Dân số già' },
-    { id: 'soc_urban', name: 'Đô thị hóa, Nhà ở & Giao thông' },
-    { id: 'soc_equality', name: 'Bất bình đẳng & Phúc lợi xã hội' }
+    { id: 'soc_culture', name: 'Văn hóa, Truyền thống, Du lịch & Toàn cầu hóa' },
+    { id: 'soc_age', name: 'Dân số & Khoảng cách thế hệ' },
+    { id: 'soc_urban', name: 'Đô thị hóa, Kiến trúc & Không gian công cộng' },
+    { id: 'soc_equality', name: 'Phúc lợi xã hội, Đói nghèo & Xung đột' },
+    { id: 'soc_traffic', name: 'Giao thông, Hạ tầng & An toàn đường bộ' },
+    { id: 'soc_government', name: 'Chính phủ, Ngân sách & Trách nhiệm công dân' }
   ],
   work: [
     { id: 'work_career_choice', name: 'Lựa chọn nghề nghiệp & Phát triển kỹ năng' },
@@ -92,16 +94,17 @@ const SUBTOPICS = {
     { id: 'work_future_issues', name: 'Thị trường lao động, Thất nghiệp & Bình đẳng' }
   ],
   crime: [
-    { id: 'crime_punishment', name: 'Hình phạt & Hệ thống nhà tù' },
-    { id: 'crime_juvenile', name: 'Tội phạm vị thành niên' },
-    { id: 'crime_prevention', name: 'Phòng chống tội phạm & An ninh' }
+    { id: 'crime_law_justice', name: 'Hệ thống tư pháp & Quyền công dân' },
+    { id: 'crime_punishment', name: 'Hình phạt, Nhà tù & Tái hòa nhập cộng đồng' },
+    { id: 'crime_juvenile', name: 'Tội phạm vị thành niên & Trách nhiệm gia đình' },
+    { id: 'crime_prevention', name: 'Phòng chống tội phạm, Cảnh sát & An ninh' }
   ],
   media: [
     { id: 'media_news_influence', name: 'Nội dung tin tức & Quyền lực truyền thông' },
     { id: 'media_formats', name: 'Các loại hình truyền thông' },
     { id: 'media_ads_impact', name: 'Tác động của Quảng cáo & Nhu cầu tiêu dùng' },
     { id: 'media_ads_regulation', name: 'Quản lý quảng cáo & Đại sứ thương hiệu' },
-    { id: 'media_arts', name: 'Nghệ thuật, Bảo tàng & Nghệ sĩ' }
+    { id: 'media_arts', name: 'Nghệ thuật, Âm nhạc & Bảo tàng' }
   ],
   lifestyle: [
     { id: 'life_family_rel', name: 'Gia đình, Nuôi dạy con & Các thế hệ' },
@@ -305,11 +308,11 @@ export default function App() {
   const [evaluationResult, setEvaluationResult] = useState(null);
   
   const [sampleEssays, setSampleEssays] = useState(IS_PREVIEW_MODE ? [
-    { id: 's1', topic: 'environment', subtopic: 'env_climate', prompt: 'Global warming is one of the most serious issues that the world is facing today. What are the causes of global warming and what measures can governments and individuals take to tackle the issue?', content: 'Among the dangers posing to humankind, global warming and rising sea levels seem to be the two of the most imminent...' },
-    { id: 's2', topic: 'work', subtopic: 'work_career_choice', prompt: 'When choosing a job, the salary is the most important consideration. To what extent do you agree or disagree?', content: 'Some people believe that money is the key consideration when deciding on a career...' }
+    { id: 's1', topic: 'society', subtopic: 'soc_traffic', prompt: 'Some people think that governments should invest mainly in making public transportation faster while other think there are more important priorities. Discuss both views and give your own opinion.', content: 'While some people believe that the most important factor in public transport is speed, others extol areas such as cost and the environment...' },
+    { id: 's2', topic: 'crime', subtopic: 'crime_law_justice', prompt: 'In some countries, some criminal trials in law courts are shown on television so that the general public can watch. Do the advantages outweigh the disadvantages?', content: 'It is true that people, in some countries, can watch some criminal trials live on TV...' }
   ] : []);
   const [vocabularies, setVocabularies] = useState(IS_PREVIEW_MODE ? [
-    { id: 'v1', topicId: 'environment', subtopicId: 'env_climate', phrase: 'depletion of natural resources', translation: 'sự cạn kiệt tài nguyên thiên nhiên', examples: ['The **depletion of natural resources** is accelerating at an alarming rate.', 'We must find alternatives to prevent the further **depletion of natural resources** allow future generations to thrive.'] }
+    { id: 'v1', topicId: 'society', subtopicId: 'soc_traffic', phrase: 'traffic congestion', translation: 'tắc nghẽn giao thông', examples: ['Heavy **traffic congestion** is a major problem in modern cities.', 'The new policy aims to reduce **traffic congestion** during rush hours.'] }
   ] : []);
   const [evaluationsHistory, setEvaluationsHistory] = useState(IS_PREVIEW_MODE ? [
     { id: 'ev1', prompt: 'Sample prompt 1', wordCount: 250, target: 'full', overallBand: 6.5, trScore: 6.0, ccScore: 6.0, lrScore: 7.0, graScore: 7.0, createdAt: new Date().toISOString() }
@@ -778,7 +781,7 @@ export default function App() {
         },
         {
           "id": "conclusion", "title": "4. Kết bài", 
-          "instruction": "Tóm tắt and khẳng định lại quan điểm.", 
+          "instruction": "Tóm tắt và khẳng định lại quan điểm.", 
           "structures": [{"name": "Cấu trúc 1", "hint": "..."}, {"name": "Cấu trúc 2", "hint": "..."}],
           "requiredVocab": []
         }
