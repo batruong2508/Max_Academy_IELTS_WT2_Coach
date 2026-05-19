@@ -71,7 +71,7 @@ const SUBTOPICS = {
     { id: 'tech_ai', name: 'Trí tuệ nhân tạo & Tự động hóa' },
     { id: 'tech_space', name: 'Khám phá vũ trụ' },
     { id: 'tech_lifestyle', name: 'Tác động đời sống & Thói quen' },
-    { id: 'tech_education', name: 'Công nghệ với Trẻ em & Trí não' }
+    { id: 'tech_education', name: 'Công nghệ với Trẻ em & Trí脑' }
   ],
   health: [
     { id: 'health_diet_fitness', name: 'Dinh dưỡng, Thể chất & Lối sống' },
@@ -113,17 +113,6 @@ const SUBTOPICS = {
     { id: 'life_personal_values', name: 'Giá trị sống, Tính cách & Lựa chọn cá nhân' },
     { id: 'life_modern_issues', name: 'Không gian sống & Các vấn đề lối sống hiện đại' }
   ]
-};
-
-const SAMPLE_PROMPTS = {
-  edu_purpose: "Some people believe that the main aim of university education is to help graduates find better jobs, while others think that university education has much wider benefits for individuals and society. Discuss both views and give your opinion.",
-  env_climate: "Global warming is one of the most serious issues that the world is facing today. What are the causes of global warming and what measures can governments and individuals take to tackle the issue?",
-  tech_ai: "Some people believe that artificial intelligence will eventually replace human workers in most industries. To what extent do you agree or disagree?",
-  health_diet_fitness: "In some countries, the average weight of people is increasing and their levels of health and fitness are decreasing. What do you think are the causes of these problems and what measures could be taken to solve them?",
-  work_career_choice: "When choosing a job, the salary is the most important consideration. To what extent do you agree or disagree?",
-  soc_culture: "The increase in international travel and business has led to a situation where people are adopting a single global culture. Do you think the advantages of this outweigh the disadvantages?",
-  life_health_recreation: "Stress: What are the factors that cause stress and how to cope with stress?",
-  media_news_influence: "The news media have become too much influence in people's lives today and this is a negative development. To what extent do you agree or disagree?"
 };
 
 // --- GEMINI API HELPERS ---
@@ -274,7 +263,6 @@ export default function App() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isAuthChecking, setIsAuthChecking] = useState(!IS_PREVIEW_MODE);
 
-  // Lắng nghe trạng thái đăng nhập
   useEffect(() => {
     if (!IS_PREVIEW_MODE && auth) {
       const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -329,7 +317,7 @@ export default function App() {
   
   const [sampleEssays, setSampleEssays] = useState(IS_PREVIEW_MODE ? [
     { id: 's1', topic: 'society', subtopic: 'soc_traffic', prompt: 'Some people think that governments should invest mainly in making public transportation faster while other think there are more important priorities. Discuss both views and give your own opinion.', content: 'While some people believe that the most important factor in public transport is speed, others extol areas such as cost and the environment...' },
-    { id: 's2', topic: 'crime', subtopic: 'crime_law_justice', prompt: 'In some countries, some criminal trials in law courts are shown on television so that the general public can watch. Do the advantages outweigh the disadvantages?', content: 'It is true that people, in some countries, can watch some criminal trials live on TV...' }
+    { id: 's2', crime: 'crime', subtopic: 'crime_law_justice', prompt: 'In some countries, some criminal trials in law courts are shown on television so that the general public can watch. Do the advantages outweigh the disadvantages?', content: 'It is true that people, in some countries, can watch some criminal trials live on TV...' }
   ] : []);
   const [vocabularies, setVocabularies] = useState(IS_PREVIEW_MODE ? [
     { id: 'v1', topicId: 'society', subtopicId: 'soc_traffic', phrase: 'traffic congestion', translation: 'tắc nghẽn giao thông', examples: ['Heavy **traffic congestion** is a major problem in modern cities.', 'The new policy aims to reduce **traffic congestion** during rush hours.'] }
@@ -337,7 +325,7 @@ export default function App() {
   const [evaluationsHistory, setEvaluationsHistory] = useState(IS_PREVIEW_MODE ? [
     { id: 'ev1', prompt: 'Sample prompt 1', wordCount: 250, target: 'full', overallBand: 6.5, trScore: 6.0, ccScore: 6.0, lrScore: 7.0, graScore: 7.0, createdAt: new Date().toISOString() }
   ] : []);
-  
+
   useEffect(() => {
     if (IS_PREVIEW_MODE || !user || !db) return;
     
@@ -370,7 +358,7 @@ export default function App() {
   const [suggestedPromptVocabs, setSuggestedPromptVocabs] = useState([]);
   const [isGeneratingPromptVocabs, setIsGeneratingPromptVocabs] = useState(false);
 
-  // Xóa các dữ liệu AI cũ khi người dùng đổi đề bài mới
+  // Xóa dữ liệu cũ khi đổi đề bài mới
   useEffect(() => {
     setMindMapData(null);
     setSuggestedPromptVocabs([]);
@@ -606,6 +594,7 @@ export default function App() {
     else if (timeRemaining === 0) { setIsTimerRunning(false); clearInterval(timerRef.current); }
     return () => clearInterval(timerRef.current);
   }, [isTimerRunning, timeRemaining]);
+  
   useEffect(() => {
     const handleMouseMove = (e) => {
       if (!isDraggingRef.current) return;
@@ -713,82 +702,25 @@ export default function App() {
 
   const handleGeneratePrompt = () => {
     if (sampleEssays.length === 0) {
-        return showToast("Kho bài mẫu hiện đang trống. Vui lòng thêm bài mẫu vào kho trước!", "error");
+        return showToast("Kho bài mẫu đang trống. Vui lòng thêm bài mẫu trước khi tạo đề!", "error");
     }
     
     let availableSamples = sampleEssays;
-    if (selectedTopic && selectedTopic !== 'general') {
-        availableSamples = availableSamples.filter(s => s.topic === selectedTopic);
-    }
+    
+    // Lọc theo chủ đề phụ nếu có, nếu không lọc theo chủ đề chính
     if (selectedSubtopic) {
-        availableSamples = availableSamples.filter(s => s.subtopic === selectedSubtopic);
+        availableSamples = sampleEssays.filter(s => s.subtopic === selectedSubtopic);
+    } else if (selectedTopic && selectedTopic !== 'general') {
+        availableSamples = sampleEssays.filter(s => s.topic === selectedTopic);
     }
     
     if (availableSamples.length === 0) {
-        availableSamples = sampleEssays;
-        showToast("Không có đề bài cho chủ đề này. Đã lấy ngẫu nhiên từ toàn bộ kho.", "info", 4000);
+        return showToast("Không có đề bài nào thuộc chủ đề này trong Kho. Vui lòng chọn chủ đề khác hoặc thêm bài mới.", "info");
     }
 
-    const randomSample = availableSamples[Math.floor(Math.random() * availableSamples.length)];
-    setPrompt(randomSample.prompt); 
-    setEssay(''); 
-    setTimeRemaining(40 * 60); 
-    setIsTimerRunning(false); 
-    setEvaluationResult(null); 
-    closeAllSidebars();
-    setCopilotUses(3); 
-    setIsGuidedDraft(false); 
-  };
-
-  const handleViewSample = async () => {
-    if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước.", "error");
-
-    const matchedSample = sampleEssays.find(s => (s.prompt || '').toLowerCase().trim() === prompt.toLowerCase().trim());
-    if (matchedSample && matchedSample.content) {
-        closeAllSidebars();
-        setSelectedSample(matchedSample);
-        return;
-    }
-
-    // Tự động gọi AI tạo bài mẫu nếu không có sẵn
-    closeAllSidebars();
-    if (!checkAndRecordApiCall()) return;
-
-    setIsGeneratingSample(true);
-    showToast("Đang nhờ AI viết bài mẫu Band 8.0+...", "info", 5000);
-
-    const systemInstruction = `You are an expert IELTS examiner. Write a Band 8.0+ sample essay for this prompt: "${prompt}".
-    Structure it clearly with an Intro, 2 Body paragraphs, and a Conclusion. Use advanced vocabulary and complex grammar.
-    Return ONLY the essay text, NO markdown formatting, NO extra comments.`;
-
-    try {
-        const result = await fetchWithRetry({
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: "Write an IELTS Task 2 essay for the provided prompt." }] }],
-                systemInstruction: { parts: [{ text: systemInstruction }] }
-            })
-        });
-
-        let essayText = result.candidates[0].content.parts[0].text.trim();
-        essayText = essayText.replace(/^```[a-z]*\n/i, '').replace(/\n```$/i, '').trim();
-
-        const newSampleData = {
-            id: 'ai_gen_' + Date.now(),
-            topic: selectedTopic || 'general',
-            subtopic: selectedSubtopic || '',
-            prompt: prompt,
-            content: essayText,
-            isAiGenerated: true // Cờ đánh dấu bài do AI tự sinh
-        };
-
-        setSelectedSample(newSampleData);
-        showToast("Đã tạo xong bài mẫu bằng AI!", "success");
-    } catch (error) {
-        handleApiError(error);
-    } finally {
-        setIsGeneratingSample(false);
-    }
+    const randomPrompt = availableSamples[Math.floor(Math.random() * availableSamples.length)].prompt;
+    setPrompt(randomPrompt); setEssay(''); setTimeRemaining(40 * 60); setIsTimerRunning(false); setEvaluationResult(null); closeAllSidebars();
+    setCopilotUses(3); setIsGuidedDraft(false); 
   };
 
   const handleSuggestIdeas = async () => {
@@ -798,10 +730,11 @@ export default function App() {
     
     setIsGeneratingIdeas(true);
 
-    const relevantSamples = getRelevantSamples(3);
+    // CHỈ TÌM 1 BÀI MẪU KHỚP VỚI ĐỀ BÀI HIỆN TẠI
+    const matchedSample = sampleEssays.find(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
     let referenceContext = "";
-    if (relevantSamples.length > 0) {
-        referenceContext = `\n\nREFERENCE ESSAYS TO BASE IDEAS ON:\n${relevantSamples.map((s, i) => `Essay ${i+1}:\n${s.content}`).join('\n\n')}\n\nCRITICAL INSTRUCTION: Analyze the Reference Essays provided above. Extract the core arguments and ideas from them to build this EGOSFI mind map. Do not invent completely new ideas if the reference essays already cover the topic well.`;
+    if (matchedSample) {
+        referenceContext = `\n\nREFERENCE ESSAY TO BASE IDEAS ON:\n${matchedSample.content}\n\nCRITICAL INSTRUCTION: Analyze the Reference Essay provided above. Extract the core arguments and ideas from it to build this EGOSFI mind map. Do not invent completely new ideas if the reference essay already covers the topic well.`;
     }
 
     const systemInstruction = `You are an IELTS Writing Task 2 expert. Generate an EGOSFI mind map for this prompt: "${prompt}".
@@ -824,10 +757,11 @@ export default function App() {
     
     setIsGeneratingPromptVocabs(true);
 
-    const relevantSamples = getRelevantSamples(5);
+    // CHỈ TÌM 1 BÀI MẪU KHỚP VỚI ĐỀ BÀI HIỆN TẠI
+    const matchedSample = sampleEssays.find(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
     let referenceContext = "";
-    if (relevantSamples.length > 0) {
-        referenceContext = `\n\nREFERENCE ESSAYS TO EXTRACT VOCABULARY FROM:\n${relevantSamples.map((s, i) => `Essay ${i+1}:\n${s.content}`).join('\n\n')}\n\nCRITICAL INSTRUCTION: You MUST extract the vocabulary phrases directly from the text of the Reference Essays provided above. Do not invent new phrases if there are good ones in the text.`;
+    if (matchedSample) {
+        referenceContext = `\n\nREFERENCE ESSAY TO EXTRACT VOCABULARY FROM:\n${matchedSample.content}\n\nCRITICAL INSTRUCTION: You MUST extract the vocabulary phrases directly from the text of the Reference Essay provided above. Do not invent new phrases if there are good ones in the text.`;
     }
 
     const systemInstruction = `Suggest exactly 10 academic phrases (Band 7.5+) for this prompt: "${prompt}".${referenceContext}
@@ -860,10 +794,11 @@ export default function App() {
     setIsGeneratingGuide(true);
     setGuidedPlan(null); setGuidedDrafts({ intro: '', body1: '', body2: '', conclusion: '' }); setGuidedStepIndex(0);
 
-    const relevantSamples = getRelevantSamples(3);
+    // CHỈ TÌM 1 BÀI MẪU KHỚP VỚI ĐỀ BÀI HIỆN TẠI
+    const matchedSample = sampleEssays.find(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
     let referenceContext = "";
-    if (relevantSamples.length > 0) {
-        referenceContext = `\n\nREFERENCE ESSAYS TO EXTRACT VOCABULARY AND IDEAS FROM:\n${relevantSamples.map((s, i) => `Essay ${i+1}:\n${s.content}`).join('\n\n')}\n\nCRITICAL INSTRUCTION: You MUST base the suggested structures and extract the "requiredVocab" collocations directly from the Reference Essays provided above. Help the student replicate the flow and wording of these 9.0 essays.`;
+    if (matchedSample) {
+        referenceContext = `\n\nREFERENCE ESSAY TO EXTRACT VOCABULARY AND IDEAS FROM:\n${matchedSample.content}\n\nCRITICAL INSTRUCTION: You MUST base the suggested structures and extract the "requiredVocab" collocations directly from the Reference Essay provided above. Help the student replicate the flow and wording of this 9.0 essay.`;
     }
 
     const systemInstruction = `You are an expert IELTS Writing Tutor. The student needs to write an essay for this prompt: "${prompt}".${referenceContext}
@@ -917,6 +852,54 @@ export default function App() {
     }
   };
 
+  const handleViewSample = async () => {
+    if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước.", "error");
+    
+    // Tìm trong kho xem có bài mẫu cho đề này không
+    const matchedSample = sampleEssays.find(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
+    if (matchedSample) { 
+        closeAllSidebars(); 
+        setSelectedSample({...matchedSample, isAiGenerated: false}); 
+        return;
+    } 
+    
+    // Nếu không có, gọi AI để sinh bài mẫu Band 8.0+
+    closeAllSidebars();
+    if (!checkAndRecordApiCall()) return;
+    
+    setIsGeneratingSample(true);
+    showToast("Đang nhờ AI viết bài mẫu Band 8.0+...", "info", 5000);
+    
+    const systemInstruction = `You are an expert IELTS examiner. Write a Band 8.0+ sample essay for this prompt: "${prompt}". 
+    Structure it clearly with an Intro, 2 Body paragraphs, and a Conclusion. Use advanced vocabulary and complex grammar.
+    Return ONLY the essay text, NO markdown formatting, NO extra comments.`;
+    
+    try {
+        const result = await fetchWithRetry({
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                contents: [{ parts: [{ text: "Write an IELTS Task 2 essay for the provided prompt." }] }], 
+                systemInstruction: { parts: [{ text: systemInstruction }] }
+            })
+        });
+        
+        const essayText = result.candidates[0].content.parts[0].text.trim();
+        const newSample = {
+            id: 'ai_gen_' + Date.now(),
+            topic: selectedTopic || 'general',
+            subtopic: selectedSubtopic || '',
+            prompt: prompt,
+            content: essayText,
+            isAiGenerated: true // Đánh dấu là bài do AI viết chứ không có trong kho
+        };
+        setSelectedSample(newSample);
+    } catch (error) {
+        handleApiError(error);
+    } finally {
+        setIsGeneratingSample(false);
+    }
+  };
+
   const handleParaphrase = async () => { 
     if (!paraphraseInput.trim()) return;
     if (!checkAndRecordApiCall()) return; 
@@ -948,7 +931,7 @@ export default function App() {
     
     let targetInstruction = writingTarget === 'full' ? `Grade the FULL ESSAY.` : writingTarget === 'intro_conc' ? `The student is ONLY writing the INTRODUCTION and CONCLUSION. Evaluate based on Paraphrasing and Thesis.` : `The student is ONLY writing BODY PARAGRAPH(S). Evaluate based on flow, coherence and topic sentences.`;
     
-    // RAG Logic: Lấy tối đa 5 bài mẫu
+    // RAG Logic: Lấy tối đa 5 bài mẫu để làm mốc đánh giá
     const relevantSamples = getRelevantSamples(5);
     let referenceContext = "";
     if (relevantSamples.length > 0) {
@@ -1199,7 +1182,7 @@ export default function App() {
 
       <div className="flex items-center gap-2 shrink-0">
         <div className="bg-orange-50 text-orange-600 px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-black text-sm border border-orange-200 shadow-sm cursor-help" title={`Kỷ lục dài nhất: ${userStats.longestStreak || 0} ngày`}>
-           🔥 {userStats.currentStreak || 0}
+            🔥 {userStats.currentStreak || 0}
         </div>
 
         <div className="bg-slate-800 px-3 py-1.5 rounded-lg flex flex-col hidden sm:flex">
@@ -1538,7 +1521,7 @@ export default function App() {
        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto custom-scrollbar flex-1 pb-10 content-start">
           {filteredSamples.length === 0 ? <div className="col-span-full py-20 text-center text-slate-300 font-bold border-2 border-dashed rounded-3xl">Chưa có bài mẫu nào trong chủ đề này.</div> :
           filteredSamples.map(s => (
-            <div key={s.id} onClick={() => setSelectedSample(s)} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 cursor-pointer hover:border-emerald-300 transition-colors relative group h-fit">
+            <div key={s.id} onClick={() => setSelectedSample({...s, isAiGenerated: false})} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 cursor-pointer hover:border-emerald-300 transition-colors relative group h-fit">
                <div className="absolute top-6 right-6 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setNewSample({ id: s.id, topic: s.topic || '', subtopic: s.subtopic || '', prompt: s.prompt, content: s.content }); setShowSampleModal(true); }} className="text-slate-300 hover:text-blue-500 p-1"><Edit3 size={18}/></button>
                   <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); triggerDelete('sample_essays', s.id); }} className="text-slate-300 hover:text-rose-500 p-1"><Trash2 size={18}/></button>
@@ -2015,23 +1998,24 @@ export default function App() {
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
           <div className="bg-white rounded-2xl md:rounded-3xl shadow-2xl w-[95%] max-w-4xl max-h-[90vh] flex flex-col animate-slideUp overflow-hidden">
              <div className="p-4 md:p-5 border-b flex justify-between items-center bg-slate-50 shrink-0">
-                <h3 className="font-bold text-blue-700 text-sm md:text-base flex items-center gap-2">
-                   <Library size={18}/> {selectedSample.isAiGenerated ? 'Bài Mẫu AI Viết (Band 8.0+)' : 'Bài Mẫu Tham Khảo (Band 8.0+)'}
-                </h3>
+                <h3 className="font-bold text-blue-700 text-sm md:text-base flex items-center gap-2"><Library size={18}/> Bài Mẫu Tham Khảo (Band 8.0)</h3>
                 <div className="flex items-center gap-1">
                    <button onClick={() => { setNewSample({ id: selectedSample.id, topic: selectedSample.topic || '', subtopic: selectedSample.subtopic || '', prompt: selectedSample.prompt, content: selectedSample.content }); setSelectedSample(null); setShowSampleModal(true); }} className="hover:bg-slate-200 p-2 rounded-xl text-slate-500 transition-colors" title="Sửa bài mẫu này"><Edit3 size={20}/></button>
                    <button onClick={() => setSelectedSample(null)} className="hover:bg-slate-200 p-2 rounded-xl text-slate-500 transition-colors"><X size={20}/></button>
                 </div>
              </div>
              <div className="p-6 md:p-8 overflow-y-auto flex-1 min-h-0 custom-scrollbar">
+                
                 {selectedSample.isAiGenerated && (
-                   <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl flex items-start gap-3 mb-6 shadow-sm">
-                      <Sparkles className="shrink-0 mt-0.5" size={18} />
-                      <p className="text-sm font-medium leading-relaxed"><strong>Ghi chú:</strong> Đề bài này chưa có trong Kho Bài Mẫu của bạn. Đây là bài mẫu được AI sinh ra để bạn tham khảo.</p>
-                   </div>
+                    <div className="bg-amber-50 border-l-4 border-amber-500 p-3 mb-4 rounded-r-xl">
+                        <p className="text-amber-800 text-sm font-bold flex items-center gap-2">
+                            <AlertTriangle size={16}/> Đề bài này chưa có trong Kho Bài Mẫu. Đây là bài do AI viết để bạn tham khảo.
+                        </p>
+                    </div>
                 )}
+
                 <div className="flex gap-2 mb-4">
-                  {selectedSample.topic && selectedSample.topic !== 'general' && <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-3 py-1 rounded-lg inline-block">{TOPICS.find(t => t.id === selectedSample.topic)?.name || selectedSample.topic}</span>}
+                  {selectedSample.topic && <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-3 py-1 rounded-lg inline-block">{TOPICS.find(t => t.id === selectedSample.topic)?.name || selectedSample.topic}</span>}
                   {selectedSample.subtopic && <span className="text-[10px] font-bold bg-slate-50 text-slate-500 px-3 py-1 rounded-lg inline-block border">{SUBTOPICS[selectedSample.topic]?.find(st => st.id === selectedSample.subtopic)?.name || selectedSample.subtopic}</span>}
                 </div>
                 <p className="text-xl md:text-2xl font-black text-slate-800 mb-8 leading-relaxed border-l-4 border-blue-500 pl-4">{selectedSample.prompt}</p>
@@ -2458,9 +2442,9 @@ export default function App() {
                      </div>
                   </div>
                 )}
-              </div>
+             </div>
               
-              <div className="p-5 bg-slate-50 flex justify-end gap-3 border-t shrink-0">
+             <div className="p-5 bg-slate-50 flex justify-end gap-3 border-t shrink-0">
                 {vocabStep === 'init' && (
                   <button onClick={handleAnalyzeVocab} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-black flex items-center gap-2 w-full justify-center shadow-lg transition-colors"><Sparkles size={18}/> Phân tích & Lấy câu mẫu</button>
                 )}
@@ -2470,8 +2454,8 @@ export default function App() {
                     <button onClick={handleConfirmSaveVocab} className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-xl font-black flex items-center gap-2 shadow-lg transition-colors"><Save size={18}/> {newVocab.id ? 'Cập nhật' : 'Lưu chính thức'}</button>
                   </>
                 )}
-              </div>
-           </div>
+             </div>
+          </div>
         </div>
       )}
 
