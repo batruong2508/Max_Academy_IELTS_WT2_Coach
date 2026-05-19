@@ -10,7 +10,7 @@ import {
 // ==========================================
 // 🔴 CÔNG TẮC BẬT/TẮT CHẾ ĐỘ PREVIEW (Chỉnh false khi up lên Vercel)
 // ==========================================
-const IS_PREVIEW_MODE = true; 
+const IS_PREVIEW_MODE = false; 
 
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from 'firebase/app';
