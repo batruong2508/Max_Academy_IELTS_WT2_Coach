@@ -71,7 +71,7 @@ const SUBTOPICS = {
     { id: 'tech_ai', name: 'Trí tuệ nhân tạo & Tự động hóa' },
     { id: 'tech_space', name: 'Khám phá vũ trụ' },
     { id: 'tech_lifestyle', name: 'Tác động đời sống & Thói quen' },
-    { id: 'tech_education', name: 'Công nghệ với Trẻ em & Trí脑' }
+    { id: 'tech_education', name: 'Công nghệ với Trẻ em & Trí não' }
   ],
   health: [
     { id: 'health_diet_fitness', name: 'Dinh dưỡng, Thể chất & Lối sống' },
@@ -281,6 +281,7 @@ export default function App() {
   const [selectedTopic, setSelectedTopic] = useState('');
   const [selectedSubtopic, setSelectedSubtopic] = useState('');
   const [prompt, setPrompt] = useState('');
+  const [activePromptId, setActivePromptId] = useState(null); // STATE MỚI ĐỂ LƯU ID TẠM
   const [essay, setEssay] = useState('');
   const [wordCount, setWordCount] = useState(0);
   const [writingTarget, setWritingTarget] = useState('full');
@@ -310,14 +311,13 @@ export default function App() {
   const [guidedDrafts, setGuidedDrafts] = useState({ intro: '', body1: '', body2: '', conclusion: '' });
   const [isGeneratingGuide, setIsGeneratingGuide] = useState(false);
   const [isGuidedDraft, setIsGuidedDraft] = useState(false); 
-  const [isGeneratingSample, setIsGeneratingSample] = useState(false);
 
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState(null);
   
   const [sampleEssays, setSampleEssays] = useState(IS_PREVIEW_MODE ? [
     { id: 's1', topic: 'society', subtopic: 'soc_traffic', prompt: 'Some people think that governments should invest mainly in making public transportation faster while other think there are more important priorities. Discuss both views and give your own opinion.', content: 'While some people believe that the most important factor in public transport is speed, others extol areas such as cost and the environment...' },
-    { id: 's2', crime: 'crime', subtopic: 'crime_law_justice', prompt: 'In some countries, some criminal trials in law courts are shown on television so that the general public can watch. Do the advantages outweigh the disadvantages?', content: 'It is true that people, in some countries, can watch some criminal trials live on TV...' }
+    { id: 's2', topic: 'crime', subtopic: 'crime_law_justice', prompt: 'In some countries, some criminal trials in law courts are shown on television so that the general public can watch. Do the advantages outweigh the disadvantages?', content: 'It is true that people, in some countries, can watch some criminal trials live on TV...' }
   ] : []);
   const [vocabularies, setVocabularies] = useState(IS_PREVIEW_MODE ? [
     { id: 'v1', topicId: 'society', subtopicId: 'soc_traffic', phrase: 'traffic congestion', translation: 'tắc nghẽn giao thông', examples: ['Heavy **traffic congestion** is a major problem in modern cities.', 'The new policy aims to reduce **traffic congestion** during rush hours.'] }
@@ -325,7 +325,7 @@ export default function App() {
   const [evaluationsHistory, setEvaluationsHistory] = useState(IS_PREVIEW_MODE ? [
     { id: 'ev1', prompt: 'Sample prompt 1', wordCount: 250, target: 'full', overallBand: 6.5, trScore: 6.0, ccScore: 6.0, lrScore: 7.0, graScore: 7.0, createdAt: new Date().toISOString() }
   ] : []);
-
+  
   useEffect(() => {
     if (IS_PREVIEW_MODE || !user || !db) return;
     
@@ -357,14 +357,15 @@ export default function App() {
   const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
   const [suggestedPromptVocabs, setSuggestedPromptVocabs] = useState([]);
   const [isGeneratingPromptVocabs, setIsGeneratingPromptVocabs] = useState(false);
-
-  // Xóa dữ liệu cũ khi đổi đề bài mới
+  const [isGeneratingSample, setIsGeneratingSample] = useState(false);
+  
+  // Dọn dẹp dữ liệu AI cũ khi đề bài thay đổi
   useEffect(() => {
     setMindMapData(null);
     setSuggestedPromptVocabs([]);
     setGuidedPlan(null);
   }, [prompt]);
-  
+
   const [timeRemaining, setTimeRemaining] = useState(40 * 60);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   
@@ -418,19 +419,6 @@ export default function App() {
     setSelectedSample(null);
     setSelectedVocab(null);
     setShowVocabSidebar(false);
-  };
-
-  const getRelevantSamples = (maxCount) => {
-    let relevantSamples = sampleEssays.filter(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
-    if (relevantSamples.length < maxCount && selectedSubtopic) {
-        const subtopicSamples = sampleEssays.filter(s => s.subtopic === selectedSubtopic && !relevantSamples.find(r => r.id === s.id));
-        relevantSamples = [...relevantSamples, ...subtopicSamples];
-    }
-    if (relevantSamples.length < maxCount && selectedTopic) {
-        const topicSamples = sampleEssays.filter(s => s.topic === selectedTopic && !relevantSamples.find(r => r.id === s.id));
-        relevantSamples = [...relevantSamples, ...topicSamples];
-    }
-    return relevantSamples.slice(0, maxCount);
   };
 
   useEffect(() => {
@@ -701,26 +689,86 @@ export default function App() {
   };
 
   const handleGeneratePrompt = () => {
-    if (sampleEssays.length === 0) {
-        return showToast("Kho bài mẫu đang trống. Vui lòng thêm bài mẫu trước khi tạo đề!", "error");
-    }
-    
     let availableSamples = sampleEssays;
-    
-    // Lọc theo chủ đề phụ nếu có, nếu không lọc theo chủ đề chính
     if (selectedSubtopic) {
-        availableSamples = sampleEssays.filter(s => s.subtopic === selectedSubtopic);
+       availableSamples = sampleEssays.filter(s => s.subtopic === selectedSubtopic);
     } else if (selectedTopic && selectedTopic !== 'general') {
-        availableSamples = sampleEssays.filter(s => s.topic === selectedTopic);
-    }
-    
-    if (availableSamples.length === 0) {
-        return showToast("Không có đề bài nào thuộc chủ đề này trong Kho. Vui lòng chọn chủ đề khác hoặc thêm bài mới.", "info");
+       availableSamples = sampleEssays.filter(s => s.topic === selectedTopic);
     }
 
-    const randomPrompt = availableSamples[Math.floor(Math.random() * availableSamples.length)].prompt;
-    setPrompt(randomPrompt); setEssay(''); setTimeRemaining(40 * 60); setIsTimerRunning(false); setEvaluationResult(null); closeAllSidebars();
+    if (availableSamples.length > 0) {
+        const randomSample = availableSamples[Math.floor(Math.random() * availableSamples.length)];
+        setPrompt(randomSample.prompt);
+        setActivePromptId(randomSample.id); // LƯU ID CỦA BÀI MẪU NÀY LẠI
+    } else {
+        const fallbackPrompt = selectedSubtopic && SAMPLE_PROMPTS[selectedSubtopic] ? SAMPLE_PROMPTS[selectedSubtopic] : "Some people think that technology is driving people apart, while others believe it is bringing people closer together. Discuss both views and give your opinion.";
+        setPrompt(fallbackPrompt);
+        setActivePromptId(null); // Không có trong kho thì ID là null
+        showToast("Chủ đề này chưa có trong kho, AI đã tạo đề dự phòng.", "info");
+    }
+    
+    setEssay(''); setTimeRemaining(40 * 60); setIsTimerRunning(false); setEvaluationResult(null); closeAllSidebars();
     setCopilotUses(3); setIsGuidedDraft(false); 
+  };
+
+  const handleViewSample = async () => {
+    if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước.", "error");
+    
+    let matchedSample = null;
+
+    // 1. Ưu tiên tìm theo ID (Nhanh và chính xác tuyệt đối 100%)
+    if (activePromptId) {
+        matchedSample = sampleEssays.find(s => s.id === activePromptId);
+    }
+
+    // 2. Dự phòng: Tìm theo chữ nếu người dùng tự gõ/copy đề (Làm sạch chuỗi trước khi so sánh)
+    if (!matchedSample) {
+        const normalizeText = (text) => text.toLowerCase().replace(/\s+/g, ' ').trim();
+        const normalizedInput = normalizeText(prompt);
+        matchedSample = sampleEssays.find(s => normalizeText(s.prompt) === normalizedInput);
+    }
+
+    if (matchedSample) { 
+        closeAllSidebars(); 
+        setSelectedSample(matchedSample); 
+        return;
+    } 
+    
+    // 3. Nếu thực sự không có trong kho, gọi AI viết
+    closeAllSidebars();
+    if (!checkAndRecordApiCall()) return;
+    
+    setIsGeneratingSample(true);
+    showToast("Đề bài mới. Đang nhờ AI viết bài mẫu Band 8.0+...", "info", 5000);
+    
+    const systemInstruction = `You are an expert IELTS examiner. Write a Band 8.0+ sample essay for this prompt: "${prompt}". 
+    Structure it clearly with an Intro, 2 Body paragraphs, and a Conclusion. Use advanced vocabulary and complex grammar.
+    Return ONLY the essay text, NO markdown formatting, NO extra comments.`;
+    
+    try {
+        const result = await fetchWithRetry({
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                contents: [{ parts: [{ text: "Write an IELTS Task 2 essay for the provided prompt." }] }], 
+                systemInstruction: { parts: [{ text: systemInstruction }] }
+            })
+        });
+        
+        const essayText = result.candidates[0].content.parts[0].text.trim();
+        const newSample = {
+            id: 'ai_gen_' + Date.now(),
+            topic: selectedTopic || 'general',
+            subtopic: selectedSubtopic || '',
+            prompt: prompt,
+            content: essayText,
+            isAiGenerated: true // Cờ đánh dấu để hiện cảnh báo màu vàng
+        };
+        setSelectedSample(newSample);
+    } catch (error) {
+        handleApiError(error);
+    } finally {
+        setIsGeneratingSample(false);
+    }
   };
 
   const handleSuggestIdeas = async () => {
@@ -730,11 +778,10 @@ export default function App() {
     
     setIsGeneratingIdeas(true);
 
-    // CHỈ TÌM 1 BÀI MẪU KHỚP VỚI ĐỀ BÀI HIỆN TẠI
-    const matchedSample = sampleEssays.find(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
+    const relevantSample = sampleEssays.find(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
     let referenceContext = "";
-    if (matchedSample) {
-        referenceContext = `\n\nREFERENCE ESSAY TO BASE IDEAS ON:\n${matchedSample.content}\n\nCRITICAL INSTRUCTION: Analyze the Reference Essay provided above. Extract the core arguments and ideas from it to build this EGOSFI mind map. Do not invent completely new ideas if the reference essay already covers the topic well.`;
+    if (relevantSample) {
+        referenceContext = `\n\nREFERENCE ESSAY TO BASE IDEAS ON:\n${relevantSample.content}\n\nCRITICAL INSTRUCTION: Analyze the Reference Essay provided above. Extract the core arguments and ideas from it to build this EGOSFI mind map. Do not invent completely new ideas if the reference essay already covers the topic well.`;
     }
 
     const systemInstruction = `You are an IELTS Writing Task 2 expert. Generate an EGOSFI mind map for this prompt: "${prompt}".
@@ -750,6 +797,7 @@ export default function App() {
     } catch (error) { handleApiError(error); setShowIdeasModal(false); } finally { setIsGeneratingIdeas(false); }
   };
 
+  // Chức năng Từ Vựng (Chỉ đọc 1 bài mẫu nếu có)
   const handleSuggestPromptVocab = async () => { 
     if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước.", "error");
     closeAllSidebars(); setShowVocabSidebar(true); if (suggestedPromptVocabs.length > 0) return; 
@@ -757,11 +805,10 @@ export default function App() {
     
     setIsGeneratingPromptVocabs(true);
 
-    // CHỈ TÌM 1 BÀI MẪU KHỚP VỚI ĐỀ BÀI HIỆN TẠI
-    const matchedSample = sampleEssays.find(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
+    const relevantSample = sampleEssays.find(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
     let referenceContext = "";
-    if (matchedSample) {
-        referenceContext = `\n\nREFERENCE ESSAY TO EXTRACT VOCABULARY FROM:\n${matchedSample.content}\n\nCRITICAL INSTRUCTION: You MUST extract the vocabulary phrases directly from the text of the Reference Essay provided above. Do not invent new phrases if there are good ones in the text.`;
+    if (relevantSample) {
+        referenceContext = `\n\nREFERENCE ESSAY TO EXTRACT VOCABULARY FROM:\n${relevantSample.content}\n\nCRITICAL INSTRUCTION: You MUST extract the vocabulary phrases directly from the text of the Reference Essay provided above.`;
     }
 
     const systemInstruction = `Suggest exactly 10 academic phrases (Band 7.5+) for this prompt: "${prompt}".${referenceContext}
@@ -786,6 +833,7 @@ export default function App() {
     } catch (error) { handleApiError(error); setShowVocabSidebar(false); } finally { setIsGeneratingPromptVocabs(false); }
   };
 
+  // Chức năng Hướng dẫn viết (Reverse Translation - Dịch từ Việt sang Anh)
   const handleStartGuidedWriting = async () => {
     if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước!", "error");
     setShowGuidedModal(true); 
@@ -794,46 +842,45 @@ export default function App() {
     setIsGeneratingGuide(true);
     setGuidedPlan(null); setGuidedDrafts({ intro: '', body1: '', body2: '', conclusion: '' }); setGuidedStepIndex(0);
 
-    const matchedSample = sampleEssays.find(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
+    const relevantSample = sampleEssays.find(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
     let referenceContext = "";
-    if (matchedSample) {
-        referenceContext = `\n\nREFERENCE ESSAY TO EXTRACT VOCABULARY AND IDEAS FROM:\n${matchedSample.content}\n\nCRITICAL INSTRUCTION: You MUST base the suggested ideas and extract the "requiredVocab" collocations directly from the Reference Essay provided above. Translate the core flow of this essay into Vietnamese so the student can practice translating it back to English.`;
+    if (relevantSample) {
+        referenceContext = `\n\nREFERENCE ESSAY TO EXTRACT IDEAS FROM:\n${relevantSample.content}\n\nCRITICAL INSTRUCTION: You MUST base the structure and ideas on this Reference Essay.`;
     }
 
-    const systemInstruction = `You are an expert IELTS Writing Tutor. The student needs to write an essay for this prompt: "${prompt}".${referenceContext}
-    Create a 4-step Guided Writing Plan. The primary goal is to help the student practice TRANSLATING FROM VIETNAMESE TO ENGLISH.
-    For Intro, Body 1 and Body 2, provide EXACTLY 3 natural, precise, and context-appropriate English collocations (Band 7.5+) extracted from references that the student should try to use.
+    const systemInstruction = `You are an expert IELTS Writing Tutor. The student needs to translate ideas from Vietnamese to English for this prompt: "${prompt}".${referenceContext}
+    Create a 4-step Guided Writing Plan.
     
     CRITICAL RULES:
-    1. DO NOT use obscure "big words". Prioritize natural phrasing.
-    2. Provide 2 DIFFERENT ways/approaches (Cách 1, Cách 2) for each paragraph.
-    3. The "hint" for each structure MUST BE WRITTEN ENTIRELY IN VIETNAMESE. Provide full Vietnamese sentences or detailed paragraph ideas in Vietnamese that the student must translate into English. DO NOT write the English translation in the hint.
+    1. "instruction": Must be in Vietnamese.
+    2. "structures": Provide 2 DIFFERENT ways to translate the idea. The "hint" MUST BE IN VIETNAMESE, providing the full Vietnamese sentence for the student to translate into English.
+    3. "requiredVocab": Provide exactly 3 English collocations (Band 7.5+) to help them translate.
     
     Return STRICTLY JSON matching this structure:
     {
       "steps": [
         {
           "id": "intro", "title": "1. Mở bài", 
-          "instruction": "Dịch các câu tiếng Việt sau sang tiếng Anh để tạo thành phần Mở bài.", 
-          "structures": [{"name": "Cách 1", "hint": "[Câu tiếng Việt hoàn chỉnh để dịch]"}, {"name": "Cách 2", "hint": "[Câu tiếng Việt hoàn chỉnh khác để dịch]"}],
-          "requiredVocab": [{"phrase": "collocation 1", "meaning": "nghĩa"}, {"phrase": "collocation 2", "meaning": "nghĩa"}, {"phrase": "collocation 3", "meaning": "nghĩa"}]
+          "instruction": "Dịch các câu sau sang tiếng Anh để tạo thành Mở bài.", 
+          "structures": [{"name": "Cách 1", "hint": "[Câu Tiếng Việt cần dịch]..."}, {"name": "Cách 2", "hint": "[Câu Tiếng Việt cần dịch]..."}],
+          "requiredVocab": [{"phrase": "collocation 1", "meaning": "nghĩa"}, {"phrase": "collocation 2", "meaning": "nghĩa"}]
         },
         {
           "id": "body1", "title": "2. Thân bài 1", 
-          "instruction": "Dịch đoạn văn tiếng Việt sau sang tiếng Anh để tạo thành Body 1. Cố gắng sử dụng các từ vựng gợi ý bên dưới.", 
-          "structures": [{"name": "Cách 1", "hint": "[Đoạn tiếng Việt hoàn chỉnh để dịch]"}, {"name": "Cách 2", "hint": "[Đoạn tiếng Việt hoàn chỉnh khác để dịch]"}],
-          "requiredVocab": [{"phrase": "...", "meaning": "..."}, {"phrase": "...", "meaning": "..."}, {"phrase": "...", "meaning": "..."}]
+          "instruction": "Dịch các ý sau để hoàn thành Body 1.", 
+          "structures": [{"name": "Cách 1", "hint": "[Câu Tiếng Việt]..."}, {"name": "Cách 2", "hint": "[Câu Tiếng Việt]..."}],
+          "requiredVocab": [{"phrase": "...", "meaning": "..."}, {"phrase": "...", "meaning": "..."}]
         },
         {
           "id": "body2", "title": "3. Thân bài 2", 
-          "instruction": "Dịch đoạn văn tiếng Việt sau sang tiếng Anh để tạo thành Body 2. Cố gắng sử dụng các từ vựng gợi ý bên dưới.", 
-          "structures": [{"name": "Cách 1", "hint": "[Đoạn tiếng Việt hoàn chỉnh để dịch]"}, {"name": "Cách 2", "hint": "[Đoạn tiếng Việt hoàn chỉnh khác để dịch]"}],
-          "requiredVocab": [{"phrase": "...", "meaning": "..."}, {"phrase": "...", "meaning": "..."}, {"phrase": "...", "meaning": "..."}]
+          "instruction": "Dịch các ý sau để hoàn thành Body 2.", 
+          "structures": [{"name": "Cách 1", "hint": "[Câu Tiếng Việt]..."}, {"name": "Cách 2", "hint": "[Câu Tiếng Việt]..."}],
+          "requiredVocab": [{"phrase": "...", "meaning": "..."}, {"phrase": "...", "meaning": "..."}]
         },
         {
           "id": "conclusion", "title": "4. Kết bài", 
-          "instruction": "Dịch câu tiếng Việt sau sang tiếng Anh để chốt lại vấn đề.", 
-          "structures": [{"name": "Cách 1", "hint": "[Câu tiếng Việt kết luận để dịch]"}, {"name": "Cách 2", "hint": "[Câu tiếng Việt kết luận khác để dịch]"}],
+          "instruction": "Dịch câu sau để chốt lại vấn đề.", 
+          "structures": [{"name": "Cách 1", "hint": "[Câu Tiếng Việt]..."}, {"name": "Cách 2", "hint": "[Câu Tiếng Việt]..."}],
           "requiredVocab": []
         }
       ]
@@ -850,54 +897,6 @@ export default function App() {
         setShowGuidedModal(false); 
     } finally { 
         setIsGeneratingGuide(false); 
-    }
-  };
-
-  const handleViewSample = async () => {
-    if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước.", "error");
-    
-    // Tìm trong kho xem có bài mẫu cho đề này không
-    const matchedSample = sampleEssays.find(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
-    if (matchedSample) { 
-        closeAllSidebars(); 
-        setSelectedSample({...matchedSample, isAiGenerated: false}); 
-        return;
-    } 
-    
-    // Nếu không có, gọi AI để sinh bài mẫu Band 8.0+
-    closeAllSidebars();
-    if (!checkAndRecordApiCall()) return;
-    
-    setIsGeneratingSample(true);
-    showToast("Đang nhờ AI viết bài mẫu Band 8.0+...", "info", 5000);
-    
-    const systemInstruction = `You are an expert IELTS examiner. Write a Band 8.0+ sample essay for this prompt: "${prompt}". 
-    Structure it clearly with an Intro, 2 Body paragraphs, and a Conclusion. Use advanced vocabulary and complex grammar.
-    Return ONLY the essay text, NO markdown formatting, NO extra comments.`;
-    
-    try {
-        const result = await fetchWithRetry({
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                contents: [{ parts: [{ text: "Write an IELTS Task 2 essay for the provided prompt." }] }], 
-                systemInstruction: { parts: [{ text: systemInstruction }] }
-            })
-        });
-        
-        const essayText = result.candidates[0].content.parts[0].text.trim();
-        const newSample = {
-            id: 'ai_gen_' + Date.now(),
-            topic: selectedTopic || 'general',
-            subtopic: selectedSubtopic || '',
-            prompt: prompt,
-            content: essayText,
-            isAiGenerated: true // Đánh dấu là bài do AI viết chứ không có trong kho
-        };
-        setSelectedSample(newSample);
-    } catch (error) {
-        handleApiError(error);
-    } finally {
-        setIsGeneratingSample(false);
     }
   };
 
@@ -932,10 +931,9 @@ export default function App() {
     
     let targetInstruction = writingTarget === 'full' ? `Grade the FULL ESSAY.` : writingTarget === 'intro_conc' ? `The student is ONLY writing the INTRODUCTION and CONCLUSION. Evaluate based on Paraphrasing and Thesis.` : `The student is ONLY writing BODY PARAGRAPH(S). Evaluate based on flow, coherence and topic sentences.`;
     
-    // RAG Logic: Lấy tối đa 5 bài mẫu để làm mốc đánh giá
-    const relevantSamples = getRelevantSamples(5);
+    const relevantSamples = getRelevantSamples(2);
     let referenceContext = "";
-    if (relevantSamples.length > 0) {
+    if (relevantSamples && relevantSamples.length > 0) {
         referenceContext = `\n\nREFERENCE ESSAYS (BAND 9.0 STANDARD):\n${relevantSamples.map((s, i) => `Essay ${i+1}:\n${s.content}`).join('\n\n')}\n\nCRITICAL SEPARATION RULE FOR TASK RESPONSE (TR):
         The reference essays are provided ONLY to calibrate your standard for Vocabulary (LR), Grammar (GRA), and Cohesion (CC). 
         DO NOT force the student to use the same ideas or opinions as the reference essays. Evaluate the student's Task Response based solely on how logically they develop THEIR OWN ideas, even if they completely contradict the reference essays.
@@ -992,6 +990,15 @@ export default function App() {
       }
 
     } catch (error) { handleApiError(error); } finally { setIsEvaluating(false); }
+  };
+
+  const getRelevantSamples = (maxCount) => {
+    let relevantSamples = sampleEssays.filter(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
+    if (relevantSamples.length < maxCount && selectedSubtopic) {
+        const subtopicSamples = sampleEssays.filter(s => s.subtopic === selectedSubtopic && !relevantSamples.find(r => r.id === s.id));
+        relevantSamples = [...relevantSamples, ...subtopicSamples];
+    }
+    return relevantSamples.slice(0, maxCount);
   };
 
   const handleBatchCheckCorrections = async () => {
@@ -1113,7 +1120,7 @@ export default function App() {
     if (sampleEssays.some(s => (s.prompt || '').toLowerCase().trim() === newSample.prompt.toLowerCase().trim() && s.id !== newSample.id)) return showToast("Đề bài này đã tồn tại!", "error");
     try {
       const safeData = { topic: newSample.topic || '', subtopic: newSample.subtopic || '', prompt: newSample.prompt || '', content: newSample.content || '' };
-      if (newSample.id) { 
+      if (newSample.id && !newSample.id.startsWith('ai_gen_')) { 
           if (IS_PREVIEW_MODE) {
               setSampleEssays(prev => prev.map(s => s.id === newSample.id ? { ...s, ...safeData } : s));
               showToast("Đã cập nhật (MOCK)!", "success"); 
@@ -1256,7 +1263,17 @@ export default function App() {
               </div>
             </div>
 
-            <textarea ref={promptRef} className="w-full bg-transparent text-slate-800 font-bold outline-none resize-y min-h-[40px] max-h-[120px] custom-scrollbar text-sm mt-2" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Nhập đề bài..." rows={2} />
+            <textarea 
+               ref={promptRef} 
+               className="w-full bg-transparent text-slate-800 font-bold outline-none resize-y min-h-[40px] max-h-[120px] custom-scrollbar text-sm mt-2" 
+               value={prompt} 
+               onChange={(e) => {
+                  setPrompt(e.target.value);
+                  setActivePromptId(null); // Hủy ID nếu người dùng tự sửa text
+               }} 
+               placeholder="Nhập đề bài..." 
+               rows={2} 
+            />
             
             <div className="flex flex-wrap gap-1.5">
               <button onClick={handleStartGuidedWriting} disabled={isGeneratingGuide} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors disabled:opacity-50">
@@ -1522,7 +1539,7 @@ export default function App() {
        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto custom-scrollbar flex-1 pb-10 content-start">
           {filteredSamples.length === 0 ? <div className="col-span-full py-20 text-center text-slate-300 font-bold border-2 border-dashed rounded-3xl">Chưa có bài mẫu nào trong chủ đề này.</div> :
           filteredSamples.map(s => (
-            <div key={s.id} onClick={() => setSelectedSample({...s, isAiGenerated: false})} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 cursor-pointer hover:border-emerald-300 transition-colors relative group h-fit">
+            <div key={s.id} onClick={() => setSelectedSample(s)} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 cursor-pointer hover:border-emerald-300 transition-colors relative group h-fit">
                <div className="absolute top-6 right-6 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setNewSample({ id: s.id, topic: s.topic || '', subtopic: s.subtopic || '', prompt: s.prompt, content: s.content }); setShowSampleModal(true); }} className="text-slate-300 hover:text-blue-500 p-1"><Edit3 size={18}/></button>
                   <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); triggerDelete('sample_essays', s.id); }} className="text-slate-300 hover:text-rose-500 p-1"><Trash2 size={18}/></button>
@@ -2006,15 +2023,12 @@ export default function App() {
                 </div>
              </div>
              <div className="p-6 md:p-8 overflow-y-auto flex-1 min-h-0 custom-scrollbar">
-                
                 {selectedSample.isAiGenerated && (
-                    <div className="bg-amber-50 border-l-4 border-amber-500 p-3 mb-4 rounded-r-xl">
-                        <p className="text-amber-800 text-sm font-bold flex items-center gap-2">
-                            <AlertTriangle size={16}/> Đề bài này chưa có trong Kho Bài Mẫu. Đây là bài do AI viết để bạn tham khảo.
-                        </p>
+                    <div className="mb-6 p-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-sm font-bold flex items-center gap-2">
+                        <Sparkles size={18} className="text-amber-500 shrink-0"/>
+                        Đề bài này chưa có trong kho bài mẫu. Đây là bài mẫu do AI viết để bạn tham khảo.
                     </div>
                 )}
-
                 <div className="flex gap-2 mb-4">
                   {selectedSample.topic && <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-3 py-1 rounded-lg inline-block">{TOPICS.find(t => t.id === selectedSample.topic)?.name || selectedSample.topic}</span>}
                   {selectedSample.subtopic && <span className="text-[10px] font-bold bg-slate-50 text-slate-500 px-3 py-1 rounded-lg inline-block border">{SUBTOPICS[selectedSample.topic]?.find(st => st.id === selectedSample.subtopic)?.name || selectedSample.subtopic}</span>}
@@ -2166,7 +2180,7 @@ export default function App() {
                 ) : 
                 mindMapData && mindMapData.view40 && mindMapData.view60 ? (
                   <div className="flex flex-col lg:flex-row items-stretch gap-6 lg:gap-4 relative w-full pt-4 pb-6">
-                     
+                      
                      <div className="flex-1 flex flex-col gap-4">
                         <div className="bg-white border-l-4 border-rose-500 py-3 px-4 rounded-xl shadow-sm text-center">
                            <p className="text-[10px] uppercase font-black tracking-widest text-rose-400 mb-1">VIEW 40 (Nhượng bộ)</p>
@@ -2278,11 +2292,6 @@ export default function App() {
                                        <p className="text-amber-900 font-medium text-sm leading-relaxed">{str.hint}</p>
                                     </div>
                                  ))}
-                                 {guidedPlan.steps[guidedStepIndex].vietnameseHint && !guidedPlan.steps[guidedStepIndex].structures && (
-                                    <div className="bg-white p-3.5 rounded-xl border border-amber-200/60 shadow-sm col-span-full">
-                                       <p className="text-amber-900 font-medium text-sm leading-relaxed">{guidedPlan.steps[guidedStepIndex].vietnameseHint}</p>
-                                    </div>
-                                 )}
                                </div>
                             </div>
                          </div>
@@ -2443,9 +2452,9 @@ export default function App() {
                      </div>
                   </div>
                 )}
-             </div>
+              </div>
               
-             <div className="p-5 bg-slate-50 flex justify-end gap-3 border-t shrink-0">
+              <div className="p-5 bg-slate-50 flex justify-end gap-3 border-t shrink-0">
                 {vocabStep === 'init' && (
                   <button onClick={handleAnalyzeVocab} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-black flex items-center gap-2 w-full justify-center shadow-lg transition-colors"><Sparkles size={18}/> Phân tích & Lấy câu mẫu</button>
                 )}
@@ -2455,8 +2464,8 @@ export default function App() {
                     <button onClick={handleConfirmSaveVocab} className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-xl font-black flex items-center gap-2 shadow-lg transition-colors"><Save size={18}/> {newVocab.id ? 'Cập nhật' : 'Lưu chính thức'}</button>
                   </>
                 )}
-             </div>
-          </div>
+              </div>
+           </div>
         </div>
       )}
 
