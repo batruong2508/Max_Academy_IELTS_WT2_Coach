@@ -794,45 +794,46 @@ export default function App() {
     setIsGeneratingGuide(true);
     setGuidedPlan(null); setGuidedDrafts({ intro: '', body1: '', body2: '', conclusion: '' }); setGuidedStepIndex(0);
 
-    // CHỈ TÌM 1 BÀI MẪU KHỚP VỚI ĐỀ BÀI HIỆN TẠI
     const matchedSample = sampleEssays.find(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
     let referenceContext = "";
     if (matchedSample) {
-        referenceContext = `\n\nREFERENCE ESSAY TO EXTRACT VOCABULARY AND IDEAS FROM:\n${matchedSample.content}\n\nCRITICAL INSTRUCTION: You MUST base the suggested structures and extract the "requiredVocab" collocations directly from the Reference Essay provided above. Help the student replicate the flow and wording of this 9.0 essay.`;
+        referenceContext = `\n\nREFERENCE ESSAY TO EXTRACT VOCABULARY AND IDEAS FROM:\n${matchedSample.content}\n\nCRITICAL INSTRUCTION: You MUST base the suggested ideas and extract the "requiredVocab" collocations directly from the Reference Essay provided above. Translate the core flow of this essay into Vietnamese so the student can practice translating it back to English.`;
     }
 
     const systemInstruction = `You are an expert IELTS Writing Tutor. The student needs to write an essay for this prompt: "${prompt}".${referenceContext}
-    Create a 4-step Guided Writing Plan. For Intro, Body 1 and Body 2, provide EXACTLY 3 natural, precise, and context-appropriate collocations (Band 7.5+) extracted from references that the student should try to use.
+    Create a 4-step Guided Writing Plan. The primary goal is to help the student practice TRANSLATING FROM VIETNAMESE TO ENGLISH.
+    For Intro, Body 1 and Body 2, provide EXACTLY 3 natural, precise, and context-appropriate English collocations (Band 7.5+) extracted from references that the student should try to use.
     
     CRITICAL RULES:
     1. DO NOT use obscure "big words". Prioritize natural phrasing.
-    2. Provide 2 DIFFERENT grammatical structures for each step.
+    2. Provide 2 DIFFERENT ways/approaches (Cách 1, Cách 2) for each paragraph.
+    3. The "hint" for each structure MUST BE WRITTEN ENTIRELY IN VIETNAMESE. Provide full Vietnamese sentences or detailed paragraph ideas in Vietnamese that the student must translate into English. DO NOT write the English translation in the hint.
     
     Return STRICTLY JSON matching this structure:
     {
       "steps": [
         {
           "id": "intro", "title": "1. Mở bài", 
-          "instruction": "Paraphrase đề bài và đưa ra Thesis Statement.", 
-          "structures": [{"name": "Cấu trúc 1", "hint": "Gợi ý..."}, {"name": "Cấu trúc 2", "hint": "Gợi ý..."}],
+          "instruction": "Dịch các câu tiếng Việt sau sang tiếng Anh để tạo thành phần Mở bài.", 
+          "structures": [{"name": "Cách 1", "hint": "[Câu tiếng Việt hoàn chỉnh để dịch]"}, {"name": "Cách 2", "hint": "[Câu tiếng Việt hoàn chỉnh khác để dịch]"}],
           "requiredVocab": [{"phrase": "collocation 1", "meaning": "nghĩa"}, {"phrase": "collocation 2", "meaning": "nghĩa"}, {"phrase": "collocation 3", "meaning": "nghĩa"}]
         },
         {
           "id": "body1", "title": "2. Thân bài 1", 
-          "instruction": "Viết đoạn Body 1. Hãy cố gắng áp dụng các cụm từ đắt giá dưới đây.", 
-          "structures": [{"name": "Cấu trúc 1", "hint": "..."}, {"name": "Cấu trúc 2", "hint": "..."}],
+          "instruction": "Dịch đoạn văn tiếng Việt sau sang tiếng Anh để tạo thành Body 1. Cố gắng sử dụng các từ vựng gợi ý bên dưới.", 
+          "structures": [{"name": "Cách 1", "hint": "[Đoạn tiếng Việt hoàn chỉnh để dịch]"}, {"name": "Cách 2", "hint": "[Đoạn tiếng Việt hoàn chỉnh khác để dịch]"}],
           "requiredVocab": [{"phrase": "...", "meaning": "..."}, {"phrase": "...", "meaning": "..."}, {"phrase": "...", "meaning": "..."}]
         },
         {
           "id": "body2", "title": "3. Thân bài 2", 
-          "instruction": "Viết đoạn Body 2. Hãy cố gắng áp dụng các cụm từ đắt giá dưới đây.", 
-          "structures": [{"name": "Cấu trúc 1", "hint": "..."}, {"name": "Cấu trúc 2", "hint": "..."}],
+          "instruction": "Dịch đoạn văn tiếng Việt sau sang tiếng Anh để tạo thành Body 2. Cố gắng sử dụng các từ vựng gợi ý bên dưới.", 
+          "structures": [{"name": "Cách 1", "hint": "[Đoạn tiếng Việt hoàn chỉnh để dịch]"}, {"name": "Cách 2", "hint": "[Đoạn tiếng Việt hoàn chỉnh khác để dịch]"}],
           "requiredVocab": [{"phrase": "...", "meaning": "..."}, {"phrase": "...", "meaning": "..."}, {"phrase": "...", "meaning": "..."}]
         },
         {
           "id": "conclusion", "title": "4. Kết bài", 
-          "instruction": "Tóm tắt và khẳng định lại quan điểm.", 
-          "structures": [{"name": "Cấu trúc 1", "hint": "..."}, {"name": "Cấu trúc 2", "hint": "..."}],
+          "instruction": "Dịch câu tiếng Việt sau sang tiếng Anh để chốt lại vấn đề.", 
+          "structures": [{"name": "Cách 1", "hint": "[Câu tiếng Việt kết luận để dịch]"}, {"name": "Cách 2", "hint": "[Câu tiếng Việt kết luận khác để dịch]"}],
           "requiredVocab": []
         }
       ]
