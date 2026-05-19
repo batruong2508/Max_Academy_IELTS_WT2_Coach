@@ -10,7 +10,7 @@ import {
 // ==========================================
 // 🔴 CÔNG TẮC BẬT/TẮT CHẾ ĐỘ PREVIEW (Chỉnh false khi up lên Vercel)
 // ==========================================
-const IS_PREVIEW_MODE = false; 
+const IS_PREVIEW_MODE = true; 
 
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from 'firebase/app';
@@ -322,6 +322,7 @@ export default function App() {
   const [guidedDrafts, setGuidedDrafts] = useState({ intro: '', body1: '', body2: '', conclusion: '' });
   const [isGeneratingGuide, setIsGeneratingGuide] = useState(false);
   const [isGuidedDraft, setIsGuidedDraft] = useState(false); 
+  const [isGeneratingSample, setIsGeneratingSample] = useState(false);
 
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState(null);
@@ -368,6 +369,13 @@ export default function App() {
   const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
   const [suggestedPromptVocabs, setSuggestedPromptVocabs] = useState([]);
   const [isGeneratingPromptVocabs, setIsGeneratingPromptVocabs] = useState(false);
+
+  // Xóa các dữ liệu AI cũ khi người dùng đổi đề bài mới
+  useEffect(() => {
+    setMindMapData(null);
+    setSuggestedPromptVocabs([]);
+    setGuidedPlan(null);
+  }, [prompt]);
   
   const [timeRemaining, setTimeRemaining] = useState(40 * 60);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
@@ -704,9 +712,83 @@ export default function App() {
   };
 
   const handleGeneratePrompt = () => {
-    const randomPrompt = sampleEssays.length > 0 ? sampleEssays[Math.floor(Math.random() * sampleEssays.length)].prompt : (selectedSubtopic && SAMPLE_PROMPTS[selectedSubtopic] ? SAMPLE_PROMPTS[selectedSubtopic] : "Some people think that technology is driving people apart, while others believe it is bringing people closer together. Discuss both views and give your opinion.");
-    setPrompt(randomPrompt); setEssay(''); setTimeRemaining(40 * 60); setIsTimerRunning(false); setEvaluationResult(null); closeAllSidebars();
-    setCopilotUses(3); setIsGuidedDraft(false); 
+    if (sampleEssays.length === 0) {
+        return showToast("Kho bài mẫu hiện đang trống. Vui lòng thêm bài mẫu vào kho trước!", "error");
+    }
+    
+    let availableSamples = sampleEssays;
+    if (selectedTopic && selectedTopic !== 'general') {
+        availableSamples = availableSamples.filter(s => s.topic === selectedTopic);
+    }
+    if (selectedSubtopic) {
+        availableSamples = availableSamples.filter(s => s.subtopic === selectedSubtopic);
+    }
+    
+    if (availableSamples.length === 0) {
+        availableSamples = sampleEssays;
+        showToast("Không có đề bài cho chủ đề này. Đã lấy ngẫu nhiên từ toàn bộ kho.", "info", 4000);
+    }
+
+    const randomSample = availableSamples[Math.floor(Math.random() * availableSamples.length)];
+    setPrompt(randomSample.prompt); 
+    setEssay(''); 
+    setTimeRemaining(40 * 60); 
+    setIsTimerRunning(false); 
+    setEvaluationResult(null); 
+    closeAllSidebars();
+    setCopilotUses(3); 
+    setIsGuidedDraft(false); 
+  };
+
+  const handleViewSample = async () => {
+    if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước.", "error");
+
+    const matchedSample = sampleEssays.find(s => (s.prompt || '').toLowerCase().trim() === prompt.toLowerCase().trim());
+    if (matchedSample && matchedSample.content) {
+        closeAllSidebars();
+        setSelectedSample(matchedSample);
+        return;
+    }
+
+    // Tự động gọi AI tạo bài mẫu nếu không có sẵn
+    closeAllSidebars();
+    if (!checkAndRecordApiCall()) return;
+
+    setIsGeneratingSample(true);
+    showToast("Đang nhờ AI viết bài mẫu Band 8.0+...", "info", 5000);
+
+    const systemInstruction = `You are an expert IELTS examiner. Write a Band 8.0+ sample essay for this prompt: "${prompt}".
+    Structure it clearly with an Intro, 2 Body paragraphs, and a Conclusion. Use advanced vocabulary and complex grammar.
+    Return ONLY the essay text, NO markdown formatting, NO extra comments.`;
+
+    try {
+        const result = await fetchWithRetry({
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: "Write an IELTS Task 2 essay for the provided prompt." }] }],
+                systemInstruction: { parts: [{ text: systemInstruction }] }
+            })
+        });
+
+        let essayText = result.candidates[0].content.parts[0].text.trim();
+        essayText = essayText.replace(/^```[a-z]*\n/i, '').replace(/\n```$/i, '').trim();
+
+        const newSampleData = {
+            id: 'ai_gen_' + Date.now(),
+            topic: selectedTopic || 'general',
+            subtopic: selectedSubtopic || '',
+            prompt: prompt,
+            content: essayText,
+            isAiGenerated: true // Cờ đánh dấu bài do AI tự sinh
+        };
+
+        setSelectedSample(newSampleData);
+        showToast("Đã tạo xong bài mẫu bằng AI!", "success");
+    } catch (error) {
+        handleApiError(error);
+    } finally {
+        setIsGeneratingSample(false);
+    }
   };
 
   const handleSuggestIdeas = async () => {
@@ -1203,12 +1285,9 @@ export default function App() {
               <button onClick={handleSuggestIdeas} disabled={isGeneratingIdeas} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-amber-100 text-amber-700 disabled:opacity-50">
                 {isGeneratingIdeas ? <Loader2 size={12} className="animate-spin"/> : <Lightbulb size={12} />} Mind Map Idea
               </button>
-              <button onClick={() => {
-                if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước.", "error");
-                const matchedSample = sampleEssays.find(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
-                if (matchedSample) { closeAllSidebars(); setSelectedSample(matchedSample); } 
-                else showToast("Chưa có bài mẫu cho đề bài này trong Kho.", "info");
-              }} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-blue-100 text-blue-700"><BookPlus size={12} /> Bài mẫu</button>
+              <button onClick={handleViewSample} disabled={isGeneratingSample} className="text-[11px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-blue-100 text-blue-700 disabled:opacity-50">
+                {isGeneratingSample ? <Loader2 size={12} className="animate-spin"/> : <BookPlus size={12} />} Bài mẫu
+              </button>
             </div>
           </div>
 
@@ -1335,7 +1414,7 @@ export default function App() {
                        const attemptState = correctionAttempts[i] || {};
                        const showAnswer = attemptState.showAnswer || attemptState.reviewed;
                        const sentenceDetails = getFullSentenceDetails(essay, c.original, c.corrected);
-                        
+                       
                        return (
                          <div key={i} ref={(el) => (commentRefs.current[i] = el)} className={`p-4 rounded-xl border transition-all ${activeCommentIndex === i ? 'bg-indigo-50/50 border-indigo-300 shadow-md' : 'bg-slate-50 border-slate-100'}`} onMouseEnter={() => setActiveCommentIndex(i)} onMouseLeave={() => setActiveCommentIndex(null)}>
                             <div className="flex justify-between items-center mb-3">
@@ -1502,7 +1581,7 @@ export default function App() {
              <button onClick={() => { setNewVocab({ topic: '', subtopic: '', phrase: '', basePhrase: '', translation: '', example1: '', example2: '' }); setVocabStep('init'); setShowVocabModal(true); }} className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-black flex items-center gap-2 shadow-lg shadow-indigo-600/20"><Plus size={18}/> Thêm từ mới</button>
           </div>
        </div>
-        
+       
        <div className="flex flex-col gap-5 overflow-y-auto custom-scrollbar flex-1 pb-10 content-start pr-2">
           {filteredVocabs.length === 0 ? <div className="py-20 text-center text-slate-300 font-bold border-2 border-dashed rounded-3xl">Chưa có từ vựng nào trong chủ đề này.</div> :
           filteredVocabs.map(v => (
@@ -1511,7 +1590,7 @@ export default function App() {
                   <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setNewVocab({ id: v.id, topic: v.topicId || '', subtopic: v.subtopicId || '', phrase: v.phrase, basePhrase: v.phrase, translation: v.translation, example1: v.examples?.[0] || '', example2: v.examples?.[1] || '' }); setVocabStep('reviewed'); setShowVocabModal(true); }} className="text-slate-400 hover:text-indigo-600 p-2 bg-slate-100 hover:bg-indigo-50 rounded-xl transition-colors" title="Sửa từ vựng này"><Edit3 size={16}/></button>
                   <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); triggerDelete('vocabulary', v.id); }} className="text-slate-400 hover:text-rose-600 p-2 bg-slate-100 hover:bg-rose-50 rounded-xl transition-colors" title="Xóa từ vựng"><Trash2 size={16}/></button>
                </div>
-                
+               
                <div className="w-full md:w-[35%] flex flex-col justify-center">
                    <div className="flex flex-wrap gap-2 mb-3 pr-20 md:pr-0">
                      {v.topicId === 'general' ? (
@@ -1526,7 +1605,7 @@ export default function App() {
                    <h3 className="text-xl md:text-[22px] font-black text-indigo-900 mb-2 leading-tight break-words">{v.phrase}</h3>
                    <p className="text-sm font-bold text-slate-500 break-words">{v.translation}</p>
                </div>
-                
+               
                <div className="w-full md:w-[65%] flex flex-col justify-center border-t md:border-t-0 md:border-l border-slate-100 pt-5 md:pt-0 md:pl-8 space-y-3">
                    {v.examples?.[0] ? (
                        <div className="text-[14px] md:text-[15px] leading-relaxed text-slate-700 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100/80 shadow-sm font-serif text-justify">
@@ -1554,7 +1633,7 @@ export default function App() {
            <div className="w-20 h-20 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mb-6 shadow-inner"><Gamepad2 size={40} /></div>
            <h2 className="text-2xl md:text-3xl font-black text-slate-800 mb-3">Ôn Tập Từ Vựng</h2>
            <p className="text-sm text-slate-500 mb-8">AI sẽ bốc ngẫu nhiên tối đa 10 từ vựng trong kho và tạo bài tập điền từ vào chỗ trống để giúp bạn kiểm tra trí nhớ.</p>
-            
+           
            <div className="flex flex-col sm:flex-row gap-3 mb-8 w-full">
               <select className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-amber-500" value={filterQuizTopic} onChange={(e) => {setFilterQuizTopic(e.target.value); setFilterQuizSubtopic('');}}>
                  <option value="">Tất cả Chủ đề (Random)</option>
@@ -1636,7 +1715,7 @@ export default function App() {
                 </div>
               ))}
            </div>
-            
+           
            <div className="p-4 border-t border-slate-200 bg-white flex justify-end shrink-0">
               {!quizResults ? (
                  <button onClick={handleCheckQuiz} className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-xl font-black shadow-lg shadow-amber-500/20 text-sm transition-colors w-full sm:w-auto">Kiểm tra đáp án</button>
@@ -1717,9 +1796,9 @@ export default function App() {
                        ))}
                        <line x1="50" y1="10" x2="50" y2="90" stroke="#cbd5e1" strokeWidth="0.5" />
                        <line x1="10" y1="50" x2="90" y2="50" stroke="#cbd5e1" strokeWidth="0.5" />
-                        
+                       
                        <polygon points={polygonPoints} fill="rgba(99, 102, 241, 0.2)" stroke="#4f46e5" strokeWidth="1.5" className="transition-all duration-700 ease-in-out" />
-                        
+                       
                        {radarData.map((d, i) => {
                           const [x, y] = getPoint(d.score, i).split(',');
                           return <circle key={i} cx={x} cy={y} r="2" fill="#4f46e5" className="animate-pulse" />;
@@ -1909,7 +1988,7 @@ export default function App() {
                 </div>
                 <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200">
                    <p className="text-xs text-amber-800 font-medium leading-relaxed">
-                     🔑 Chưa có Key? <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="font-black text-indigo-600 hover:underline">Nhấn vào đây</a> để lấy API Key miễn phí từ Google (Chỉ mất 1 phút).
+                      🔑 Chưa có Key? <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="font-black text-indigo-600 hover:underline">Nhấn vào đây</a> để lấy API Key miễn phí từ Google (Chỉ mất 1 phút).
                    </p>
                 </div>
                 <button onClick={handleSaveApiKey} disabled={!tempApiKey.trim()} className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-black text-sm py-4 rounded-2xl shadow-xl shadow-indigo-600/20 transition-all">
@@ -1936,15 +2015,23 @@ export default function App() {
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
           <div className="bg-white rounded-2xl md:rounded-3xl shadow-2xl w-[95%] max-w-4xl max-h-[90vh] flex flex-col animate-slideUp overflow-hidden">
              <div className="p-4 md:p-5 border-b flex justify-between items-center bg-slate-50 shrink-0">
-                <h3 className="font-bold text-blue-700 text-sm md:text-base flex items-center gap-2"><Library size={18}/> Bài Mẫu Tham Khảo (Band 8.0)</h3>
+                <h3 className="font-bold text-blue-700 text-sm md:text-base flex items-center gap-2">
+                   <Library size={18}/> {selectedSample.isAiGenerated ? 'Bài Mẫu AI Viết (Band 8.0+)' : 'Bài Mẫu Tham Khảo (Band 8.0+)'}
+                </h3>
                 <div className="flex items-center gap-1">
                    <button onClick={() => { setNewSample({ id: selectedSample.id, topic: selectedSample.topic || '', subtopic: selectedSample.subtopic || '', prompt: selectedSample.prompt, content: selectedSample.content }); setSelectedSample(null); setShowSampleModal(true); }} className="hover:bg-slate-200 p-2 rounded-xl text-slate-500 transition-colors" title="Sửa bài mẫu này"><Edit3 size={20}/></button>
                    <button onClick={() => setSelectedSample(null)} className="hover:bg-slate-200 p-2 rounded-xl text-slate-500 transition-colors"><X size={20}/></button>
                 </div>
              </div>
              <div className="p-6 md:p-8 overflow-y-auto flex-1 min-h-0 custom-scrollbar">
+                {selectedSample.isAiGenerated && (
+                   <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl flex items-start gap-3 mb-6 shadow-sm">
+                      <Sparkles className="shrink-0 mt-0.5" size={18} />
+                      <p className="text-sm font-medium leading-relaxed"><strong>Ghi chú:</strong> Đề bài này chưa có trong Kho Bài Mẫu của bạn. Đây là bài mẫu được AI sinh ra để bạn tham khảo.</p>
+                   </div>
+                )}
                 <div className="flex gap-2 mb-4">
-                  {selectedSample.topic && <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-3 py-1 rounded-lg inline-block">{TOPICS.find(t => t.id === selectedSample.topic)?.name || selectedSample.topic}</span>}
+                  {selectedSample.topic && selectedSample.topic !== 'general' && <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-3 py-1 rounded-lg inline-block">{TOPICS.find(t => t.id === selectedSample.topic)?.name || selectedSample.topic}</span>}
                   {selectedSample.subtopic && <span className="text-[10px] font-bold bg-slate-50 text-slate-500 px-3 py-1 rounded-lg inline-block border">{SUBTOPICS[selectedSample.topic]?.find(st => st.id === selectedSample.subtopic)?.name || selectedSample.subtopic}</span>}
                 </div>
                 <p className="text-xl md:text-2xl font-black text-slate-800 mb-8 leading-relaxed border-l-4 border-blue-500 pl-4">{selectedSample.prompt}</p>
@@ -1969,7 +2056,7 @@ export default function App() {
                <button onClick={() => setShowStructureModal(false)} className="hover:bg-slate-200 p-2 rounded-xl text-slate-500 transition-colors"><X size={20}/></button>
             </div>
             <div className="p-4 md:p-8 overflow-y-auto flex-1 min-h-0 custom-scrollbar space-y-6 md:space-y-8 text-sm text-slate-700 leading-relaxed">
-                
+               
                <div className="bg-slate-50 p-4 md:p-6 rounded-xl md:rounded-2xl border border-slate-200 shadow-sm">
                   <h4 className="font-black text-slate-800 mb-2 md:mb-3 text-sm md:text-base flex items-center gap-2">
                       <span className="w-5 h-5 md:w-6 md:h-6 bg-slate-200 rounded-full flex items-center justify-center text-[10px] md:text-xs">1</span> Mở bài (Introduction)
@@ -2015,7 +2102,7 @@ export default function App() {
                        </ul>
                     </div>
                  </div>
-                  
+                 
                  <div className="bg-emerald-50 p-4 md:p-6 rounded-xl md:rounded-2xl border border-emerald-100 shadow-sm relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-12 h-12 md:w-16 md:h-16 bg-emerald-100 rounded-bl-full -mr-6 -mt-6 md:-mr-8 md:-mt-8"></div>
                     <h4 className="font-black text-emerald-700 mb-2 md:mb-3 text-sm md:text-base flex items-center gap-2"><span className="w-5 h-5 md:w-6 md:h-6 bg-emerald-200 rounded-full flex items-center justify-center text-[10px] md:text-xs text-emerald-800">3</span> Body 2 (60%) - Khẳng định</h4>
@@ -2070,7 +2157,7 @@ export default function App() {
                   <p className="mb-2 md:mb-3 text-xs md:text-sm"><strong>Công thức:</strong> Tóm tắt lại cả 2 mặt của vấn đề + Khẳng định lại Thesis Statement (1-2 câu).</p>
                   <div className="bg-white p-3 md:p-4 rounded-lg md:rounded-xl border-l-4 border-l-emerald-500 text-emerald-800 font-medium shadow-sm text-xs md:text-sm">In conclusion, while [Side A/40%] has some merits, I am of the opinion that [Side B/60%] is far more crucial due to [Reason 1] and [Reason 2].</div>
                </div>
-                
+               
             </div>
           </div>
         </div>
@@ -2094,7 +2181,7 @@ export default function App() {
                 ) : 
                 mindMapData && mindMapData.view40 && mindMapData.view60 ? (
                   <div className="flex flex-col lg:flex-row items-stretch gap-6 lg:gap-4 relative w-full pt-4 pb-6">
-                      
+                     
                      <div className="flex-1 flex flex-col gap-4">
                         <div className="bg-white border-l-4 border-rose-500 py-3 px-4 rounded-xl shadow-sm text-center">
                            <p className="text-[10px] uppercase font-black tracking-widest text-rose-400 mb-1">VIEW 40 (Nhượng bộ)</p>
@@ -2102,7 +2189,7 @@ export default function App() {
                         </div>
                         <div className="space-y-4 lg:pr-6 relative">
                            <div className="hidden lg:block absolute right-0 top-1/2 w-6 border-b-2 border-dashed border-rose-200"></div>
-                            
+                           
                            {mindMapData.view40.ideas.map((id, i) => (
                               <div key={i} className="bg-white border-l-2 border-l-rose-400 p-4 rounded-xl shadow-sm relative ml-4 lg:ml-0 hover:shadow-md transition-shadow">
                                  <span className="absolute -left-4 -top-3 w-8 h-8 bg-rose-500 text-white font-black rounded-full flex items-center justify-center text-xs shadow-sm border-2 border-white">{id.letter}</span>
@@ -2371,9 +2458,9 @@ export default function App() {
                      </div>
                   </div>
                 )}
-             </div>
+              </div>
               
-             <div className="p-5 bg-slate-50 flex justify-end gap-3 border-t shrink-0">
+              <div className="p-5 bg-slate-50 flex justify-end gap-3 border-t shrink-0">
                 {vocabStep === 'init' && (
                   <button onClick={handleAnalyzeVocab} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-black flex items-center gap-2 w-full justify-center shadow-lg transition-colors"><Sparkles size={18}/> Phân tích & Lấy câu mẫu</button>
                 )}
@@ -2383,8 +2470,8 @@ export default function App() {
                     <button onClick={handleConfirmSaveVocab} className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-xl font-black flex items-center gap-2 shadow-lg transition-colors"><Save size={18}/> {newVocab.id ? 'Cập nhật' : 'Lưu chính thức'}</button>
                   </>
                 )}
-             </div>
-          </div>
+              </div>
+           </div>
         </div>
       )}
 
