@@ -756,7 +756,17 @@ export default function App() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: "Suggest vocabulary." }] }], systemInstruction: { parts: [{ text: systemInstruction }] }, generationConfig: { responseMimeType: "application/json" } })
       });
-      setSuggestedPromptVocabs(parseGeminiResponse(result.candidates[0].content.parts[0].text));
+      
+      const responseData = parseGeminiResponse(result.candidates[0].content.parts[0].text);
+      let parsedArray = [];
+      if (Array.isArray(responseData)) {
+          parsedArray = responseData;
+      } else if (responseData && typeof responseData === 'object') {
+          const arr = Object.values(responseData).find(v => Array.isArray(v));
+          if (arr) parsedArray = arr;
+      }
+      setSuggestedPromptVocabs(parsedArray);
+      
     } catch (error) { handleApiError(error); setShowVocabSidebar(false); } finally { setIsGeneratingPromptVocabs(false); }
   };
 
@@ -1872,7 +1882,7 @@ export default function App() {
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
                {isGeneratingPromptVocabs && <div className="text-center py-4 text-xs font-bold text-slate-500"><Loader2 className="animate-spin mx-auto mb-2" size={20}/> Đang trích xuất từ vựng...</div>}
-               {suggestedPromptVocabs.map((v, i) => (
+               {(Array.isArray(suggestedPromptVocabs) ? suggestedPromptVocabs : []).map((v, i) => (
                  <div key={i} className="p-3 bg-white border rounded-lg shadow-sm">
                     <div className="text-sm font-bold text-indigo-700">{v.phrase}</div>
                     <div className="text-xs text-slate-500 mt-1">{v.meaning}</div>
