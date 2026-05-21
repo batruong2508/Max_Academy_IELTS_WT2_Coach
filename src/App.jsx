@@ -15,7 +15,7 @@ const IS_PREVIEW_MODE = false;
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, setDoc } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
 
 // --- FIREBASE INITIALIZATION ---
 let app, auth, db, appId;
@@ -27,7 +27,8 @@ if (!IS_PREVIEW_MODE) {
       projectId: "max-academy-a6b50",
       storageBucket: "max-academy-a6b50.firebasestorage.app",
       messagingSenderId: "648894411192",
-      appId: "1:648894411192:web:4e01eae686379de7b5df4d"
+      appId: "1:648894411192:web:4e01eae686379de7b5df4d",
+      measurementId: "G-ES9Y1R538S"
     };
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
@@ -262,11 +263,38 @@ export default function App() {
   const [tempApiKey, setTempApiKey] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isAuthChecking, setIsAuthChecking] = useState(!IS_PREVIEW_MODE);
+  const [toast, setToast] = useState({ visible: false, message: '', type: 'info' });
 
+  // --- KIỂM TRA QUYỀN TRUY CẬP TỪ FIREBASE (WHITELIST THÔNG QUA allowed_users) ---
   useEffect(() => {
     if (!IS_PREVIEW_MODE && auth) {
-      const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-        setUser(currentUser);
+      const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+        if (currentUser) {
+          try {
+            // Kết nối trực tiếp tới collection "allowed_users" ở gốc
+            const whitelistRef = doc(db, 'allowed_users', currentUser.uid);
+            const whitelistSnap = await getDoc(whitelistRef);
+
+            if (!whitelistSnap.exists()) {
+              // Không tìm thấy UID trong allowed_users -> Đăng xuất ngay lập tức
+              setToast({ visible: true, message: "Tài khoản của bạn chưa được cấp quyền (Whitelist). Vui lòng liên hệ Thầy/Cô để được mở khóa.", type: 'error' });
+              setTimeout(() => setToast({ visible: false, message: '', type: 'info' }), 8000);
+              await signOut(auth);
+              setUser(null);
+            } else {
+              // Có tồn tại -> Cho phép truy cập vào ứng dụng
+              setUser(currentUser);
+            }
+          } catch (error) {
+            console.error("Lỗi xác thực quyền:", error);
+            setToast({ visible: true, message: "Có lỗi xảy ra khi kiểm tra quyền truy cập Database. Vui lòng tải lại trang.", type: 'error' });
+            setTimeout(() => setToast({ visible: false, message: '', type: 'info' }), 5000);
+            await signOut(auth);
+            setUser(null);
+          }
+        } else {
+          setUser(null);
+        }
         setIsAuthChecking(false);
       });
       return () => unsubscribe();
@@ -281,7 +309,7 @@ export default function App() {
   const [selectedTopic, setSelectedTopic] = useState('');
   const [selectedSubtopic, setSelectedSubtopic] = useState('');
   const [prompt, setPrompt] = useState('');
-  const [activePromptId, setActivePromptId] = useState(null); // STATE MỚI ĐỂ LƯU ID TẠM
+  const [activePromptId, setActivePromptId] = useState(null);
   const [essay, setEssay] = useState('');
   const [wordCount, setWordCount] = useState(0);
   const [writingTarget, setWritingTarget] = useState('full');
@@ -399,7 +427,6 @@ export default function App() {
   const [wordBank, setWordBank] = useState([]);
   const [revealedHints, setRevealedHints] = useState({});
 
-  const [toast, setToast] = useState({ visible: false, message: '', type: 'info' });
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [importDataString, setImportDataString] = useState('');
   const [newSample, setNewSample] = useState({ topic: '', subtopic: '', prompt: '', content: '' });
@@ -1938,6 +1965,16 @@ export default function App() {
           </button>
           <p className="text-[10px] text-slate-400 mt-6 uppercase font-bold tracking-widest flex items-center justify-center gap-1.5"><ShieldAlert size={12}/> Dữ liệu lưu trữ riêng tư</p>
         </div>
+
+        {/* Thông báo Toast ở màn hình Login nếu bị chặn quyền */}
+        {toast.visible && (
+          <div className="fixed top-6 inset-x-0 z-[200] flex justify-center pointer-events-none">
+            <div className={`px-8 py-3.5 rounded-2xl shadow-2xl ${toast.type === 'error' ? 'bg-rose-600 text-white border-rose-700' : 'bg-slate-800 text-white border-slate-700'} font-black text-sm animate-slideUp border flex items-center gap-3 pointer-events-auto`}>
+              {toast.type === 'error' ? <AlertTriangle className="text-white" size={18}/> : <Sparkles className="text-emerald-400" size={18}/>} 
+              {toast.message}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -2180,7 +2217,7 @@ export default function App() {
                 ) : 
                 mindMapData && mindMapData.view40 && mindMapData.view60 ? (
                   <div className="flex flex-col lg:flex-row items-stretch gap-6 lg:gap-4 relative w-full pt-4 pb-6">
-                      
+                     
                      <div className="flex-1 flex flex-col gap-4">
                         <div className="bg-white border-l-4 border-rose-500 py-3 px-4 rounded-xl shadow-sm text-center">
                            <p className="text-[10px] uppercase font-black tracking-widest text-rose-400 mb-1">VIEW 40 (Nhượng bộ)</p>
@@ -2521,7 +2558,8 @@ export default function App() {
         </div>
       )}
 
-      {toast.visible && (
+      {/* Thông báo Toast toàn cầu (Cho màn hình bên trong) */}
+      {toast.visible && user && (
         <div className="fixed top-6 inset-x-0 z-[200] flex justify-center pointer-events-none">
           <div className={`px-8 py-3.5 rounded-2xl shadow-2xl ${toast.type === 'error' ? 'bg-rose-600 text-white border-rose-700' : 'bg-slate-800 text-white border-slate-700'} font-black text-sm animate-slideUp border flex items-center gap-3 pointer-events-auto`}>
             {toast.type === 'error' ? <AlertTriangle className="text-white" size={18}/> : <Sparkles className="text-emerald-400" size={18}/>} 
