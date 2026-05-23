@@ -15,7 +15,7 @@ const IS_PREVIEW_MODE = false;
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, setDoc, getDoc, getDocs } from 'firebase/firestore';
 
 // --- FIREBASE INITIALIZATION ---
 let app, auth, db, appId;
@@ -189,7 +189,6 @@ async function fetchWithRetry(options, retries = 2) {
   }
 }
 
-// Hàm trích xuất JSON mới cực kỳ mạnh mẽ, chống lỗi rác văn bản từ AI
 const parseGeminiResponse = (text) => {
   try {
     let cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
@@ -201,7 +200,6 @@ const parseGeminiResponse = (text) => {
     let start = -1;
     let end = -1;
     
-    // Ưu tiên object {...} hoặc array [...]
     if (firstBrace !== -1 && lastBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
        start = firstBrace; end = lastBrace;
     } else if (firstBracket !== -1 && lastBracket !== -1) {
@@ -265,24 +263,20 @@ export default function App() {
   const [isAuthChecking, setIsAuthChecking] = useState(!IS_PREVIEW_MODE);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'info' });
 
-  // --- KIỂM TRA QUYỀN TRUY CẬP TỪ FIREBASE (WHITELIST THÔNG QUA allowed_users) ---
   useEffect(() => {
     if (!IS_PREVIEW_MODE && auth) {
       const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
         if (currentUser) {
           try {
-            // Kết nối trực tiếp tới collection "allowed_users" ở gốc
             const whitelistRef = doc(db, 'allowed_users', currentUser.uid);
             const whitelistSnap = await getDoc(whitelistRef);
 
             if (!whitelistSnap.exists()) {
-              // Không tìm thấy UID trong allowed_users -> Đăng xuất ngay lập tức
               setToast({ visible: true, message: "Tài khoản của bạn chưa được cấp quyền (Whitelist). Vui lòng liên hệ Thầy/Cô để được mở khóa.", type: 'error' });
               setTimeout(() => setToast({ visible: false, message: '', type: 'info' }), 8000);
               await signOut(auth);
               setUser(null);
             } else {
-              // Có tồn tại -> Cho phép truy cập vào ứng dụng
               setUser(currentUser);
             }
           } catch (error) {
@@ -302,10 +296,8 @@ export default function App() {
   }, []);
 
   const [userStats, setUserStats] = useState(IS_PREVIEW_MODE ? { currentStreak: 4, longestStreak: 12, lastWriteDate: new Date(Date.now() - 86400000).toLocaleDateString('en-CA') } : { currentStreak: 0, longestStreak: 0, lastWriteDate: null });
-
   const [activeTab, setActiveTab] = useState('practice'); 
   
-  // Practice States
   const [selectedTopic, setSelectedTopic] = useState('');
   const [selectedSubtopic, setSelectedSubtopic] = useState('');
   const [prompt, setPrompt] = useState('');
@@ -387,7 +379,6 @@ export default function App() {
   const [isGeneratingPromptVocabs, setIsGeneratingPromptVocabs] = useState(false);
   const [isGeneratingSample, setIsGeneratingSample] = useState(false);
   
-  // Dọn dẹp dữ liệu AI cũ khi đề bài thay đổi
   useEffect(() => {
     setMindMapData(null);
     setSuggestedPromptVocabs([]);
@@ -431,6 +422,9 @@ export default function App() {
   const [importDataString, setImportDataString] = useState('');
   const [newSample, setNewSample] = useState({ topic: '', subtopic: '', prompt: '', content: '' });
   const [isRestoring, setIsRestoring] = useState(false);
+  
+  // STATE MỚI CHO TÍNH NĂNG XÓA TẤT CẢ
+  const [deleteAllModal, setDeleteAllModal] = useState({ show: false, collection: null, confirmText: '', isDeleting: false });
 
   const editorRef = useRef(null);
   const promptRef = useRef(null);
@@ -726,11 +720,11 @@ export default function App() {
     if (availableSamples.length > 0) {
         const randomSample = availableSamples[Math.floor(Math.random() * availableSamples.length)];
         setPrompt(randomSample.prompt);
-        setActivePromptId(randomSample.id); // LƯU ID CỦA BÀI MẪU NÀY LẠI
+        setActivePromptId(randomSample.id);
     } else {
         const fallbackPrompt = selectedSubtopic && SAMPLE_PROMPTS[selectedSubtopic] ? SAMPLE_PROMPTS[selectedSubtopic] : "Some people think that technology is driving people apart, while others believe it is bringing people closer together. Discuss both views and give your opinion.";
         setPrompt(fallbackPrompt);
-        setActivePromptId(null); // Không có trong kho thì ID là null
+        setActivePromptId(null);
         showToast("Chủ đề này chưa có trong kho, AI đã tạo đề dự phòng.", "info");
     }
     
@@ -743,12 +737,10 @@ export default function App() {
     
     let matchedSample = null;
 
-    // 1. Ưu tiên tìm theo ID (Nhanh và chính xác tuyệt đối 100%)
     if (activePromptId) {
         matchedSample = sampleEssays.find(s => s.id === activePromptId);
     }
 
-    // 2. Dự phòng: Tìm theo chữ nếu người dùng tự gõ/copy đề (Làm sạch chuỗi trước khi so sánh)
     if (!matchedSample) {
         const normalizeText = (text) => text.toLowerCase().replace(/\s+/g, ' ').trim();
         const normalizedInput = normalizeText(prompt);
@@ -761,7 +753,6 @@ export default function App() {
         return;
     } 
     
-    // 3. Nếu thực sự không có trong kho, gọi AI viết
     closeAllSidebars();
     if (!checkAndRecordApiCall()) return;
     
@@ -788,7 +779,7 @@ export default function App() {
             subtopic: selectedSubtopic || '',
             prompt: prompt,
             content: essayText,
-            isAiGenerated: true // Cờ đánh dấu để hiện cảnh báo màu vàng
+            isAiGenerated: true
         };
         setSelectedSample(newSample);
     } catch (error) {
@@ -824,7 +815,6 @@ export default function App() {
     } catch (error) { handleApiError(error); setShowIdeasModal(false); } finally { setIsGeneratingIdeas(false); }
   };
 
-  // Chức năng Từ Vựng (Chỉ đọc 1 bài mẫu nếu có)
   const handleSuggestPromptVocab = async () => { 
     if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước.", "error");
     closeAllSidebars(); setShowVocabSidebar(true); if (suggestedPromptVocabs.length > 0) return; 
@@ -860,7 +850,6 @@ export default function App() {
     } catch (error) { handleApiError(error); setShowVocabSidebar(false); } finally { setIsGeneratingPromptVocabs(false); }
   };
 
-  // Chức năng Hướng dẫn viết (Reverse Translation - Dịch từ Việt sang Anh)
   const handleStartGuidedWriting = async () => {
     if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước!", "error");
     setShowGuidedModal(true); 
@@ -1119,6 +1108,7 @@ export default function App() {
     if (index !== -1) { editorRef.current.focus(); editorRef.current.setSelectionRange(index, index + originalText.length); editorRef.current.scrollTop = Math.max(0, (essay.substring(0, index).split('\n').length - 3) * 24); } 
     else showToast("Không tìm thấy câu này trong bài viết.", "info");
   };
+  
   const triggerDelete = (col, id) => setDeleteConfirm({ col, id });
   const confirmDeleteAction = async () => { 
       if (IS_PREVIEW_MODE) {
@@ -1129,6 +1119,34 @@ export default function App() {
       }
       setDeleteConfirm(null); 
   };
+  
+  // Hàm xử lý Xóa Toàn bộ (Batch Delete)
+  const handleConfirmDeleteAll = async () => {
+    if (deleteAllModal.confirmText !== 'DELETE ALL') return;
+
+    setDeleteAllModal(prev => ({ ...prev, isDeleting: true }));
+    try {
+        if (IS_PREVIEW_MODE) {
+            if (deleteAllModal.collection === 'sample_essays') setSampleEssays([]);
+            if (deleteAllModal.collection === 'vocabulary') setVocabularies([]);
+        } else if (user) {
+            const collectionRef = collection(db, 'artifacts', appId, 'users', user.uid, deleteAllModal.collection);
+            const snapshot = await getDocs(collectionRef);
+            
+            // Xóa từng document một bằng Promise.all để tối ưu tốc độ
+            const deletePromises = snapshot.docs.map(document => 
+                deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, deleteAllModal.collection, document.id))
+            );
+            await Promise.all(deletePromises);
+        }
+        showToast("Đã xóa toàn bộ dữ liệu thành công!", "success");
+        setDeleteAllModal({ show: false, collection: null, confirmText: '', isDeleting: false });
+    } catch (error) {
+        showToast("Lỗi khi xóa: " + error.message, "error");
+        setDeleteAllModal(prev => ({ ...prev, isDeleting: false }));
+    }
+  };
+
   const handleCheckQuiz = () => {
     let results = {};
     quizData.forEach((q, index) => { results[index] = (quizAnswers[index] || '').toLowerCase().trim().replace(/[.,!?]/g, '') === q.answer.toLowerCase().trim().replace(/[.,!?]/g, ''); });
@@ -1296,7 +1314,7 @@ export default function App() {
                value={prompt} 
                onChange={(e) => {
                   setPrompt(e.target.value);
-                  setActivePromptId(null); // Hủy ID nếu người dùng tự sửa text
+                  setActivePromptId(null); 
                }} 
                placeholder="Nhập đề bài..." 
                rows={2} 
@@ -1546,12 +1564,12 @@ export default function App() {
     
     return (
     <div className="max-w-5xl mx-auto p-8 animate-fadeIn h-full flex flex-col w-full">
-       <div className="flex justify-between items-center mb-8 shrink-0">
+       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 shrink-0 gap-4">
           <h2 className="text-2xl font-black text-slate-800 flex items-center gap-2">
              <Library className="text-emerald-600"/> Kho Bài Mẫu
              <span className="ml-2 text-sm font-bold bg-emerald-100 text-emerald-700 px-3 py-1 rounded-xl shadow-sm border border-emerald-200">{filteredSamples.length} bài</span>
           </h2>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
              <select className="bg-white border-2 border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-700 outline-none focus:border-emerald-500" value={filterSampleTopic} onChange={(e) => {setFilterSampleTopic(e.target.value); setFilterSampleSubtopic('');}}>
                 <option value="">Lọc theo Chủ đề</option>
                 {TOPICS.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -1560,7 +1578,8 @@ export default function App() {
                 <option value="">Lọc Chủ đề phụ</option>
                 {filterSampleTopic && SUBTOPICS[filterSampleTopic]?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
              </select>
-             <button onClick={() => { setNewSample({ topic: '', subtopic: '', prompt: '', content: '' }); setShowSampleModal(true); }} className="bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-black flex items-center gap-2 shadow-lg shadow-emerald-600/20"><Plus size={18}/> Thêm bài mẫu</button>
+             <button onClick={() => setDeleteAllModal({ show: true, collection: 'sample_essays', confirmText: '', isDeleting: false })} disabled={filteredSamples.length === 0} className="bg-rose-100 text-rose-600 hover:bg-rose-200 hover:text-rose-700 px-4 py-2.5 rounded-xl font-black flex items-center gap-2 transition-colors disabled:opacity-50" title="Xóa toàn bộ bài mẫu"><Trash2 size={18}/></button>
+             <button onClick={() => { setNewSample({ topic: '', subtopic: '', prompt: '', content: '' }); setShowSampleModal(true); }} className="bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-black flex items-center gap-2 shadow-lg shadow-emerald-600/20"><Plus size={18} className="hidden sm:block"/> Thêm bài mẫu</button>
           </div>
        </div>
        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto custom-scrollbar flex-1 pb-10 content-start">
@@ -1592,12 +1611,12 @@ export default function App() {
     
     return (
     <div className="max-w-5xl mx-auto p-8 animate-fadeIn h-full flex flex-col w-full">
-       <div className="flex justify-between items-center mb-8 shrink-0">
+       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 shrink-0 gap-4">
           <h2 className="text-2xl font-black text-slate-800 flex items-center gap-2">
              <Tags className="text-indigo-600"/> Kho Từ Vựng
              <span className="ml-2 text-sm font-bold bg-indigo-100 text-indigo-700 px-3 py-1 rounded-xl shadow-sm border border-indigo-200">{filteredVocabs.length} từ</span>
           </h2>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
              <select className="bg-white border-2 border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-700 outline-none focus:border-indigo-500" value={filterVocabTopic} onChange={(e) => {setFilterVocabTopic(e.target.value); setFilterVocabSubtopic('');}}>
                 <option value="">Lọc theo Chủ đề</option>
                 {TOPICS.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -1606,7 +1625,8 @@ export default function App() {
                 <option value="">Lọc Chủ đề phụ</option>
                 {filterVocabTopic && SUBTOPICS[filterVocabTopic]?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
              </select>
-             <button onClick={() => { setNewVocab({ topic: '', subtopic: '', phrase: '', basePhrase: '', translation: '', example1: '', example2: '' }); setVocabStep('init'); setShowVocabModal(true); }} className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-black flex items-center gap-2 shadow-lg shadow-indigo-600/20"><Plus size={18}/> Thêm từ mới</button>
+             <button onClick={() => setDeleteAllModal({ show: true, collection: 'vocabulary', confirmText: '', isDeleting: false })} disabled={filteredVocabs.length === 0} className="bg-rose-100 text-rose-600 hover:bg-rose-200 hover:text-rose-700 px-4 py-2.5 rounded-xl font-black flex items-center gap-2 transition-colors disabled:opacity-50" title="Xóa toàn bộ từ vựng"><Trash2 size={18}/></button>
+             <button onClick={() => { setNewVocab({ topic: '', subtopic: '', phrase: '', basePhrase: '', translation: '', example1: '', example2: '' }); setVocabStep('init'); setShowVocabModal(true); }} className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-black flex items-center gap-2 shadow-lg shadow-indigo-600/20"><Plus size={18} className="hidden sm:block"/> Thêm từ mới</button>
           </div>
        </div>
        
@@ -2554,6 +2574,47 @@ export default function App() {
              <h3 className="text-2xl font-black text-slate-800 mb-3">Xác nhận xóa?</h3>
              <p className="text-sm text-slate-400 mb-8">Dữ liệu sau khi xóa sẽ không thể khôi phục lại.</p>
              <div className="flex gap-4"><button onClick={() => setDeleteConfirm(null)} className="flex-1 py-4 font-black text-slate-400">Hủy</button><button onClick={confirmDeleteAction} className="flex-1 py-4 bg-rose-600 text-white font-black rounded-2xl shadow-xl shadow-rose-600/20">Xóa vĩnh viễn</button></div>
+          </div>
+        </div>
+      )}
+      
+      {/* MODAL XÓA TẤT CẢ (DELETE ALL) BẢO MẬT KÉP */}
+      {deleteAllModal.show && (
+        <div className="fixed inset-0 z-[170] flex items-center justify-center p-2 sm:p-4 bg-slate-900/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-[40px] p-8 md:p-10 max-w-md w-[95%] shadow-2xl animate-slideUp border-4 border-rose-100 relative overflow-hidden">
+             <div className="absolute top-0 left-0 w-full h-2 bg-rose-500"></div>
+             <div className="w-20 h-20 bg-rose-100 text-rose-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner">
+                <AlertTriangle size={40}/>
+             </div>
+             <h3 className="text-2xl font-black text-slate-800 mb-3 text-center">Xóa toàn bộ dữ liệu?</h3>
+             
+             <div className="bg-rose-50 border border-rose-200 p-4 rounded-2xl mb-6">
+                <p className="text-sm text-rose-800 font-bold mb-2 flex items-start gap-2">
+                   <span className="shrink-0 mt-0.5"><ShieldAlert size={16} /></span>
+                   Hành động này không thể hoàn tác! Toàn bộ {deleteAllModal.collection === 'sample_essays' ? 'Bài mẫu' : 'Từ vựng'} sẽ bị xóa vĩnh viễn khỏi hệ thống.
+                </p>
+                <p className="text-xs text-rose-700/80 italic font-medium">Khuyến nghị: Hãy tải Backup dữ liệu ở mục "Backup & Restore" trước khi thực hiện.</p>
+             </div>
+
+             <div className="mb-8">
+                <label className="text-[11px] font-black uppercase text-slate-500 mb-2 block text-center">Gõ <span className="text-rose-600 font-mono bg-rose-100 px-1 rounded">DELETE ALL</span> để xác nhận</label>
+                <input 
+                   type="text" 
+                   className="w-full p-4 border-2 border-rose-100 rounded-2xl text-center font-mono font-black text-rose-600 focus:border-rose-500 outline-none bg-slate-50 uppercase tracking-widest placeholder-rose-200"
+                   placeholder="DELETE ALL"
+                   value={deleteAllModal.confirmText}
+                   onChange={(e) => setDeleteAllModal(prev => ({ ...prev, confirmText: e.target.value.toUpperCase() }))}
+                   disabled={deleteAllModal.isDeleting}
+                />
+             </div>
+
+             <div className="flex gap-4">
+                <button onClick={() => setDeleteAllModal({ show: false, collection: null, confirmText: '', isDeleting: false })} disabled={deleteAllModal.isDeleting} className="flex-1 py-4 font-black text-slate-500 hover:bg-slate-100 rounded-2xl transition-colors disabled:opacity-50">Hủy</button>
+                <button onClick={handleConfirmDeleteAll} disabled={deleteAllModal.isDeleting || deleteAllModal.confirmText !== 'DELETE ALL'} className="flex-1 py-4 bg-rose-600 text-white font-black rounded-2xl shadow-xl shadow-rose-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2">
+                   {deleteAllModal.isDeleting ? <Loader2 size={20} className="animate-spin" /> : <Trash2 size={20} />}
+                   XÓA VĨNH VIỄN
+                </button>
+             </div>
           </div>
         </div>
       )}
