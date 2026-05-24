@@ -1211,7 +1211,7 @@ export default function App() {
             Max Academy 
             {IS_PREVIEW_MODE && <span className="bg-red-500 text-[9px] px-1.5 py-0.5 rounded shadow-sm">PREVIEW MODE</span>}
           </h1>
-          <p className="text-[10px] text-[#D4AF37] font-medium leading-tight">Premium Academic Platform</p>
+          <p className="text-[10px] text-[#D4AF37] font-medium leading-tight">Crafted by Nguyễn Mai Bá Trường</p>
         </div>
       </div>
       
@@ -1971,7 +1971,7 @@ export default function App() {
             <Brain size={40}/>
           </div>
           <h1 className="text-3xl font-black text-[#003627] mb-3">Max Academy</h1>
-          <p className="text-[#D4AF37] text-xs uppercase font-bold tracking-widest mb-8">Premium IELTS Platform</p>
+          <p className="text-[#D4AF37] text-xs font-bold tracking-widest mb-8">Crafted by Nguyễn Mai Bá Trường</p>
           
           <button 
             onClick={handleLogin} 
