@@ -157,7 +157,7 @@ async function fetchWithRetry(options, retries = 2) {
     let timeoutId;
     try {
       const controller = new AbortController();
-      timeoutId = setTimeout(() => controller.abort(), 25000); 
+      timeoutId = setTimeout(() => controller.abort(), 60000); 
       
       const response = await fetch(url, { ...options, signal: controller.signal });
       clearTimeout(timeoutId);
@@ -902,7 +902,14 @@ export default function App() {
     try {
       const result = await fetchWithRetry({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: "Generate Guided Writing Plan" }] }], systemInstruction: { parts: [{ text: systemInstruction }] }, generationConfig: { responseMimeType: "application/json" } })
+        body: JSON.stringify({ 
+           contents: [{ parts: [{ text: "Generate Guided Writing Plan" }] }], 
+           systemInstruction: { parts: [{ text: systemInstruction }] }, 
+           generationConfig: { 
+              responseMimeType: "application/json",
+              temperature: 0.2 
+           } 
+        })
       });
       setGuidedPlan(parseGeminiResponse(result.candidates[0].content.parts[0].text));
     } catch (error) { 
