@@ -559,9 +559,11 @@ export default function App() {
     const contextStart = Math.max(0, startIndex - 150);
     const context = essay.substring(contextStart, startIndex);
 
+    // [CẬP NHẬT PROMPT]: Ưu tiên từ vựng tự nhiên, hợp ngữ cảnh, tránh từ quá to tát
     const systemPrompt = `You are an IELTS Task 2 Vocabulary Copilot. 
     The student is writing: "...${context}[${vietnameseWord}]...".
-    Translate the Vietnamese concept "[${vietnameseWord}]" into EXACTLY 3 English academic collocations/phrases that fit the context perfectly.
+    Translate the Vietnamese concept "[${vietnameseWord}]" into EXACTLY 3 English collocations/phrases that fit the context perfectly.
+    CRITICAL: Prioritize HIGHLY NATURAL, precise, and context-appropriate vocabulary (Band 7.5+). DO NOT force overly complex, obscure, or "heavy" academic words if a natural collocation works better.
     Return strictly JSON: { "options": [ {"phrase": "...", "band": "7.0"}, {"phrase": "...", "band": "8.0"}, {"phrase": "...", "band": "8.5+"} ] }`;
 
     try {
@@ -615,7 +617,7 @@ export default function App() {
     const handleMouseUp = () => { if (isDraggingRef.current) { isDraggingRef.current = false; document.body.style.cursor = 'default'; } };
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-    return () => { document.removeEventListener('mousemove', handleMouseMove); document.removeEventListener('mouseup', handleMouseUp); };
+    return () => { document.removeEventListener('mousemove', handleMouseMove); document.removeEventListener('mousemove', handleMouseUp); };
   }, []);
 
   const startDrag = (e) => { isDraggingRef.current = true; document.body.style.cursor = 'col-resize'; };
@@ -760,8 +762,12 @@ export default function App() {
     setIsGeneratingSample(true);
     showToast("Đề bài mới. Đang nhờ AI viết bài mẫu Band 8.0+...", "info", 5000);
     
-    const systemInstruction = `You are an expert IELTS examiner. Write a Band 8.0+ sample essay for this prompt: "${prompt}". 
-    Structure it clearly with an Intro, 2 Body paragraphs, and a Conclusion. Use advanced vocabulary and complex grammar.
+    // [CẬP NHẬT PROMPT]: Ép AI viết mạch lạc, sắc bén, từ vựng tự nhiên, tránh dùng từ "đao to búa lớn"
+    const systemInstruction = `You are an expert, strict IELTS examiner. Write a Band 8.0+ sample essay for this prompt: "${prompt}". 
+    CRITICAL WRITING PHILOSOPHY:
+    1. Focus heavily on Coherence and Cohesion (CC) and Task Response (TR). Arguments must be sharp, logical, and well-developed.
+    2. Use highly NATURAL, context-appropriate vocabulary (Lexical Resource). DO NOT use forced, obscure, or overly "heavy" academic words just to show off. Precision and natural phrasing are prioritized over complexity.
+    3. Structure it clearly with an Intro, 2 Body paragraphs, and a Conclusion.
     Return ONLY the essay text, NO markdown formatting, NO extra comments.`;
     
     try {
@@ -804,7 +810,7 @@ export default function App() {
     }
 
     const systemInstruction = `You are an IELTS Writing Task 2 expert. Generate an EGOSFI mind map for this prompt: "${prompt}".
-    Structure ideas into View 40 (opposing) and View 60 (supporting). Use E, G, O, S, F, I categories.${referenceContext}
+    Structure ideas into View 40 (opposing) and View 60 (supporting). Use E, G, O, S, F, I categories. Focus on sharp, highly logical arguments.${referenceContext}
     Return strictly JSON: { "centralIdea": "...", "view40": {"title": "...", "ideas": [{"letter": "S", "category": "...", "keyword": "...", "explanation": "..."}]}, "view60": {...} }`;
     
     try {
@@ -823,14 +829,10 @@ export default function App() {
     
     setIsGeneratingPromptVocabs(true);
 
-    const relevantSample = sampleEssays.find(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
-    let referenceContext = "";
-    if (relevantSample) {
-        referenceContext = `\n\nREFERENCE ESSAY TO EXTRACT VOCABULARY FROM:\n${relevantSample.content}\n\nCRITICAL INSTRUCTION: You MUST extract the vocabulary phrases directly from the text of the Reference Essay provided above.`;
-    }
-
-    const systemInstruction = `Suggest exactly 10 academic phrases (Band 7.5+) for this prompt: "${prompt}".${referenceContext}
-    Return strictly JSON array of objects with {phrase, meaning, source}.`;
+    // [CẬP NHẬT PROMPT]: Lấy 10 cụm từ ngữ cảnh tự nhiên
+    const systemInstruction = `Suggest exactly 10 natural, highly context-appropriate English collocations or phrases (Band 7.5+) for this prompt: "${prompt}".
+    CRITICAL: Focus on precise, topic-specific vocabulary. DO NOT suggest overly complex, archaic, or forced academic words. Keep it highly natural for an IELTS essay.
+    Return strictly JSON array of objects with {phrase, meaning}.`;
     
     try {
       const result = await fetchWithRetry({
@@ -856,17 +858,13 @@ export default function App() {
     if (!checkAndRecordApiCall()) return;
     setIsGeneratingGuideStep(true);
 
-    const relevantSample = sampleEssays.find(s => s.prompt.toLowerCase().trim() === currentPrompt.toLowerCase().trim());
-    let referenceContext = "";
-    if (relevantSample) {
-        referenceContext = `\n\nREFERENCE ESSAY TO EXTRACT IDEAS FROM:\n${relevantSample.content}`;
-    }
-
     const stepConfig = GUIDED_STEPS_CONFIG.find(s => s.id === stepId);
 
-    const systemInstruction = `You are an expert IELTS Writing Tutor. Create a translation exercise for the "${stepConfig.title}" paragraph based on this prompt: "${currentPrompt}".${referenceContext}
-    1. "structures": Provide 2 DIFFERENT ways to structure this paragraph. The "hint" MUST BE IN VIETNAMESE (the full sentence/ideas for the student to translate).
-    2. "vocab": Provide exactly 3 advanced English collocations (Band 7.5+).
+    // [CẬP NHẬT PROMPT]: Yêu cầu lập luận mạch lạc, sắc bén, từ vựng tự nhiên
+    const systemInstruction = `You are an expert IELTS Writing Tutor. Create a translation exercise for the "${stepConfig.title}" paragraph based on this prompt: "${currentPrompt}".
+    CRITICAL WRITING PHILOSOPHY:
+    1. "structures": Provide 2 DIFFERENT highly logical ways to structure this paragraph. Focus on sharp arguments and excellent coherence. The "hint" MUST BE IN VIETNAMESE (the full sentence/ideas for the student to translate).
+    2. "vocab": Provide exactly 3 natural, highly context-appropriate English collocations (Band 7.5+). Avoid forced, overly "heavy" academic words; prioritize precise meaning and natural flow.
     Return STRICTLY JSON matching: { "structures": [{"name": "Cách 1", "hint": "..."}, {"name": "Cách 2", "hint": "..."}] , "vocab": [{"phrase": "...", "meaning": "..."}] }`;
 
     try {
@@ -913,7 +911,10 @@ export default function App() {
     if (!checkAndRecordApiCall()) return; 
     
     setIsParaphrasing(true); setParaphraseResult(null);
-    const systemPrompt = `Paraphrase the following sentence in 2 styles: Band 6.5 and Band 7.5+. Input: "${paraphraseInput}". Return JSON: { "band65": "...", "band75": "..." }.`;
+    // [CẬP NHẬT PROMPT]: Nâng cấp câu một cách tự nhiên
+    const systemPrompt = `Paraphrase the following sentence in 2 styles: Band 6.5 and Band 7.5+. Input: "${paraphraseInput}". 
+    For Band 7.5+, focus on highly natural flow and precise meaning, avoiding overly forced "big words".
+    Return JSON: { "band65": "...", "band75": "..." }.`;
     try {
       const result = await fetchWithRetry({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -948,11 +949,16 @@ export default function App() {
         For CC and LR, DO NOT penalize natural phrasing or implicit cohesion if it matches the high-level style of the reference essays.`;
     }
 
+    // [CẬP NHẬT PROMPT]: Yêu cầu bản Polished Essay tập trung vào CC, Logic và Từ vựng tự nhiên
     let systemInstruction = `You are a strict and expert IELTS Writing Task 2 examiner. 
     1. SCORING CRITERIA: Grade the essay based STRICTLY on the official IELTS Writing Task 2 Band Descriptors (Public Version).
     2. SCORING RULE: Calculate the average of the 4 criteria. Round down to the nearest 0.5. ${referenceContext}
     3. TARGET: ${targetInstruction} Provide specific comments and detailedCorrections: [{original, corrected, explanation}].
-    4. Return strictly JSON: { "overallBand": 6.5, "trScore": 6.0, "trComment": "...", "ccScore": 7.0, "ccComment": "...", "lrScore": 6.0, "lrComment": "...", "graScore": 6.0, "graComment": "...", "detailedCorrections": [...], "polishedEssay": "Band 8.0 polished version of what student wrote." }`;
+    4. Return strictly JSON: { 
+      "overallBand": 6.5, "trScore": 6.0, "trComment": "...", "ccScore": 7.0, "ccComment": "...", "lrScore": 6.0, "lrComment": "...", "graScore": 6.0, "graComment": "...", 
+      "detailedCorrections": [...], 
+      "polishedEssay": "Band 8.0 polished version of what student wrote. Focus on extreme coherence, sharp logic, and highly natural vocabulary. Avoid forced complex words." 
+    }`;
     
     try {
       const result = await fetchWithRetry({
