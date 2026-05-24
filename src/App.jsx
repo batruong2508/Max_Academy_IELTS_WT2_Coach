@@ -116,6 +116,13 @@ const SUBTOPICS = {
   ]
 };
 
+const GUIDED_STEPS_CONFIG = [
+  { id: 'intro', title: '1. Mở bài', desc: 'Background & Thesis' },
+  { id: 'body1', title: '2. Thân bài 1', desc: 'Đoạn nhượng bộ (40%) hoặc Phân tích Nguyên nhân' },
+  { id: 'body2', title: '3. Thân bài 2', desc: 'Đoạn phản biện (60%) hoặc Phân tích Giải pháp' },
+  { id: 'conclusion', title: '4. Kết bài', desc: 'Tóm tắt & Khẳng định' }
+];
+
 // --- GEMINI API HELPERS ---
 const MODEL_NAME = "gemini-2.5-flash"; 
 
@@ -132,12 +139,8 @@ async function fetchWithRetry(options, retries = 2) {
                             trComment: "Khá tốt.", ccComment: "Mượt mà.", lrComment: "Từ vựng ổn.", graComment: "Ngữ pháp tốt.",
                             detailedCorrections: [], polishedEssay: "Mock polished essay.",
                             centralIdea: "Mock Central Idea", view40: { title: "View 40", ideas: [{letter: 'E', category: 'Economic', keyword: 'Money'}] }, view60: { title: "View 60", ideas: [{letter: 'S', category: 'Social', keyword: 'People'}] },
-                            steps: [
-                                { id: "intro", title: "1. Mở bài", instruction: "Viết mở bài", structures: [{name: "Cách 1", hint: "Hint 1"}], requiredVocab: [{phrase: "environmental impact", meaning: "tác động môi trường"}] },
-                                { id: "body1", title: "2. Thân bài 1", instruction: "Viết body 1", structures: [{name: "Cách 1", hint: "Hint 1"}], requiredVocab: [{phrase: "detrimental effect", meaning: "ảnh hưởng xấu"}] },
-                                { id: "body2", title: "3. Thân bài 2", instruction: "Viết body 2", structures: [{name: "Cách 1", hint: "Hint 1"}], requiredVocab: [] },
-                                { id: "conclusion", title: "4. Kết bài", instruction: "Viết kết bài", structures: [{name: "Cách 1", hint: "Hint 1"}], requiredVocab: [] }
-                            ],
+                            structures: [{name: "Cách 1", hint: "Mock hint 1"}, {name: "Cách 2", hint: "Mock hint 2"}],
+                            vocab: [{phrase: "environmental impact", meaning: "tác động môi trường"}],
                             options: [{ phrase: "environmental protection", band: "7.0" }, { phrase: "safeguarding the environment", band: "8.0" }]
                         }) 
                     }] 
@@ -157,7 +160,7 @@ async function fetchWithRetry(options, retries = 2) {
     let timeoutId;
     try {
       const controller = new AbortController();
-      timeoutId = setTimeout(() => controller.abort(), 60000); 
+      timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
       
       const response = await fetch(url, { ...options, signal: controller.signal });
       clearTimeout(timeoutId);
@@ -324,10 +327,11 @@ export default function App() {
   const [showVocabModal, setShowVocabModal] = useState(false);
   const [showGuidedModal, setShowGuidedModal] = useState(false); 
 
-  const [guidedPlan, setGuidedPlan] = useState(null);
+  // Guided Writing States (Lazy Load refactored)
   const [guidedStepIndex, setGuidedStepIndex] = useState(0);
+  const [guidedData, setGuidedData] = useState({});
   const [guidedDrafts, setGuidedDrafts] = useState({ intro: '', body1: '', body2: '', conclusion: '' });
-  const [isGeneratingGuide, setIsGeneratingGuide] = useState(false);
+  const [isGeneratingGuideStep, setIsGeneratingGuideStep] = useState(false);
   const [isGuidedDraft, setIsGuidedDraft] = useState(false); 
 
   const [isEvaluating, setIsEvaluating] = useState(false);
@@ -380,7 +384,7 @@ export default function App() {
   useEffect(() => {
     setMindMapData(null);
     setSuggestedPromptVocabs([]);
-    setGuidedPlan(null);
+    setGuidedData({}); // Xóa dữ liệu Hướng dẫn viết cũ nếu đổi đề
   }, [prompt]);
 
   const [timeRemaining, setTimeRemaining] = useState(40 * 60);
@@ -847,78 +851,62 @@ export default function App() {
     } catch (error) { handleApiError(error); setShowVocabSidebar(false); } finally { setIsGeneratingPromptVocabs(false); }
   };
 
-  const handleStartGuidedWriting = async () => {
-    if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước!", "error");
-    setShowGuidedModal(true); 
-    if (!checkAndRecordApiCall()) { setShowGuidedModal(false); return; } 
+  // Hàm tải dữ liệu riêng cho TỪNG BƯỚC của Hướng dẫn viết (Tối ưu JSON + Thời gian chờ)
+  const fetchGuideStep = async (stepId, currentPrompt) => {
+    if (!checkAndRecordApiCall()) return;
+    setIsGeneratingGuideStep(true);
 
-    setIsGeneratingGuide(true);
-    setGuidedPlan(null); setGuidedDrafts({ intro: '', body1: '', body2: '', conclusion: '' }); setGuidedStepIndex(0);
-
-    const relevantSample = sampleEssays.find(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
+    const relevantSample = sampleEssays.find(s => s.prompt.toLowerCase().trim() === currentPrompt.toLowerCase().trim());
     let referenceContext = "";
     if (relevantSample) {
-        referenceContext = `\n\nREFERENCE ESSAY TO EXTRACT IDEAS FROM:\n${relevantSample.content}\n\nCRITICAL INSTRUCTION: You MUST base the structure and ideas on this Reference Essay.`;
+        referenceContext = `\n\nREFERENCE ESSAY TO EXTRACT IDEAS FROM:\n${relevantSample.content}`;
     }
 
-    const systemInstruction = `You are an expert IELTS Writing Tutor. The student needs to translate ideas from Vietnamese to English for this prompt: "${prompt}".${referenceContext}
-    Create a 4-step Guided Writing Plan.
-    
-    CRITICAL RULES:
-    1. "instruction": Must be in Vietnamese.
-    2. "structures": Provide 2 DIFFERENT ways to translate the idea. The "hint" MUST BE IN VIETNAMESE, providing the full Vietnamese sentence for the student to translate into English.
-    3. "requiredVocab": Provide exactly 3 English collocations (Band 7.5+) to help them translate.
-    
-    Return STRICTLY JSON matching this structure:
-    {
-      "steps": [
-        {
-          "id": "intro", "title": "1. Mở bài", 
-          "instruction": "Dịch các câu sau sang tiếng Anh để tạo thành Mở bài.", 
-          "structures": [{"name": "Cách 1", "hint": "[Câu Tiếng Việt cần dịch]..."}, {"name": "Cách 2", "hint": "[Câu Tiếng Việt cần dịch]..."}],
-          "requiredVocab": [{"phrase": "collocation 1", "meaning": "nghĩa"}, {"phrase": "collocation 2", "meaning": "nghĩa"}]
-        },
-        {
-          "id": "body1", "title": "2. Thân bài 1", 
-          "instruction": "Dịch các ý sau để hoàn thành Body 1.", 
-          "structures": [{"name": "Cách 1", "hint": "[Câu Tiếng Việt]..."}, {"name": "Cách 2", "hint": "[Câu Tiếng Việt]..."}],
-          "requiredVocab": [{"phrase": "...", "meaning": "..."}, {"phrase": "...", "meaning": "..."}]
-        },
-        {
-          "id": "body2", "title": "3. Thân bài 2", 
-          "instruction": "Dịch các ý sau để hoàn thành Body 2.", 
-          "structures": [{"name": "Cách 1", "hint": "[Câu Tiếng Việt]..."}, {"name": "Cách 2", "hint": "[Câu Tiếng Việt]..."}],
-          "requiredVocab": [{"phrase": "...", "meaning": "..."}, {"phrase": "...", "meaning": "..."}]
-        },
-        {
-          "id": "conclusion", "title": "4. Kết bài", 
-          "instruction": "Dịch câu sau để chốt lại vấn đề.", 
-          "structures": [{"name": "Cách 1", "hint": "[Câu Tiếng Việt]..."}, {"name": "Cách 2", "hint": "[Câu Tiếng Việt]..."}],
-          "requiredVocab": []
-        }
-      ]
-    }`;
+    const stepConfig = GUIDED_STEPS_CONFIG.find(s => s.id === stepId);
+
+    const systemInstruction = `You are an expert IELTS Writing Tutor. Create a translation exercise for the "${stepConfig.title}" paragraph based on this prompt: "${currentPrompt}".${referenceContext}
+    1. "structures": Provide 2 DIFFERENT ways to structure this paragraph. The "hint" MUST BE IN VIETNAMESE (the full sentence/ideas for the student to translate).
+    2. "vocab": Provide exactly 3 advanced English collocations (Band 7.5+).
+    Return STRICTLY JSON matching: { "structures": [{"name": "Cách 1", "hint": "..."}, {"name": "Cách 2", "hint": "..."}] , "vocab": [{"phrase": "...", "meaning": "..."}] }`;
 
     try {
-      const result = await fetchWithRetry({
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-           contents: [{ parts: [{ text: "Generate Guided Writing Plan" }] }], 
-           systemInstruction: { parts: [{ text: systemInstruction }] }, 
-           generationConfig: { 
-              responseMimeType: "application/json",
-              temperature: 0.2 
-           } 
-        })
-      });
-      setGuidedPlan(parseGeminiResponse(result.candidates[0].content.parts[0].text));
-    } catch (error) { 
-        handleApiError(error); 
-        setShowGuidedModal(false); 
-    } finally { 
-        setIsGeneratingGuide(false); 
+        const result = await fetchWithRetry({
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: `Generate guide for step: ${stepId}` }] }],
+                systemInstruction: { parts: [{ text: systemInstruction }] },
+                generationConfig: { responseMimeType: "application/json", temperature: 0.2 } // Ép độ chính xác cao
+            })
+        });
+        const parsed = parseGeminiResponse(result.candidates[0].content.parts[0].text);
+        setGuidedData(prev => ({ ...prev, [stepId]: parsed }));
+    } catch (error) {
+        handleApiError(error);
+        setGuidedData(prev => ({ ...prev, [stepId]: { structures: [{name: 'Lỗi', hint: 'Không tải được nội dung, hãy thử lại.'}], vocab: [] } }));
+    } finally {
+        setIsGeneratingGuideStep(false);
     }
   };
+
+  // Gọi Hướng dẫn viết (Mở Modal ngay lập tức)
+  const handleStartGuidedWriting = () => {
+    if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước!", "error");
+    setGuidedStepIndex(0);
+    setGuidedData({});
+    setGuidedDrafts({ intro: '', body1: '', body2: '', conclusion: '' });
+    setShowGuidedModal(true); 
+  };
+
+  // Tự động tải bước tiếp theo nếu chưa có dữ liệu
+  useEffect(() => {
+    if (showGuidedModal) {
+      const stepId = GUIDED_STEPS_CONFIG[guidedStepIndex].id;
+      if (!guidedData[stepId] && !isGeneratingGuideStep) {
+        fetchGuideStep(stepId, prompt);
+      }
+    }
+  }, [guidedStepIndex, showGuidedModal]);
+
 
   const handleParaphrase = async () => { 
     if (!paraphraseInput.trim()) return;
@@ -1324,8 +1312,8 @@ export default function App() {
             />
             
             <div className="flex flex-wrap gap-2 pt-1">
-              <button onClick={handleStartGuidedWriting} disabled={isGeneratingGuide} className="text-xs font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-700 hover:border-[#003627] hover:text-[#003627] transition-colors shadow-sm disabled:opacity-50">
-                {isGeneratingGuide ? <Loader2 size={14} className="animate-spin"/> : <BookOpen size={14} className="text-[#D4AF37]" />} Hướng dẫn viết
+              <button onClick={handleStartGuidedWriting} className="text-xs font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-700 hover:border-[#003627] hover:text-[#003627] transition-colors shadow-sm">
+                <BookOpen size={14} className="text-[#D4AF37]" /> Hướng dẫn viết
               </button>
               <button onClick={() => { closeAllSidebars(); handleSuggestPromptVocab(); }} disabled={isGeneratingPromptVocabs} className="text-xs font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-700 hover:border-[#003627] hover:text-[#003627] transition-colors shadow-sm disabled:opacity-50">
                 {isGeneratingPromptVocabs ? <Loader2 size={14} className="animate-spin"/> : <Tags size={14} className="text-[#D4AF37]" />} 10 Từ Ăn Điểm
@@ -1969,7 +1957,6 @@ export default function App() {
   if (!user && !IS_PREVIEW_MODE) {
     return (
       <div className="flex items-center justify-center h-screen bg-[#003627] px-4 relative overflow-hidden">
-        {/* Subtle background decoration */}
         <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-[#D4AF37] opacity-10 rounded-full blur-[100px]"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-[#D4AF37] opacity-10 rounded-full blur-[100px]"></div>
 
@@ -2323,19 +2310,11 @@ export default function App() {
              </div>
 
              <div className="p-4 md:p-8 overflow-y-auto flex-1 min-h-0 custom-scrollbar relative">
-                {isGeneratingGuide ? (
-                   <div className="flex flex-col items-center justify-center py-20 h-full">
-                     <Loader2 className="animate-spin mb-5 text-[#D4AF37]" size={48}/>
-                     <p className="font-black text-[#003627] text-lg uppercase tracking-widest">AI đang phân tích đề bài...</p>
-                     <p className="text-sm text-gray-500 mt-2 font-medium">Đang xây dựng chiến thuật và trích xuất từ vựng Band 8.0+</p>
-                   </div>
-                ) : guidedPlan && guidedPlan.steps ? (
-                   <div className="max-w-4xl mx-auto flex flex-col h-full">
-                       
+                 <div className="max-w-4xl mx-auto flex flex-col h-full">
                       <div className="flex items-center justify-between mb-8 relative px-4">
                          <div className="absolute left-4 right-4 top-1/2 h-0.5 bg-gray-200 -z-10 -translate-y-1/2"></div>
-                         {guidedPlan.steps.map((step, idx) => (
-                            <div key={idx} className={`flex flex-col items-center gap-2 bg-[#FDFCF8] px-3 cursor-pointer transition-colors`} onClick={() => setGuidedStepIndex(idx)}>
+                         {GUIDED_STEPS_CONFIG.map((step, idx) => (
+                            <div key={idx} className={`flex flex-col items-center gap-2 bg-[#FDFCF8] px-3 cursor-pointer transition-colors`} onClick={() => { if (guidedData[step.id] || idx <= guidedStepIndex) setGuidedStepIndex(idx); }}>
                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm border-2 transition-all duration-300 ${idx === guidedStepIndex ? 'bg-[#003627] text-[#D4AF37] border-[#003627] shadow-md transform scale-110' : idx < guidedStepIndex ? 'bg-white text-[#003627] border-[#D4AF37]' : 'bg-white text-gray-300 border-gray-200'}`}>
                                   {idx < guidedStepIndex ? <CheckCircle2 size={16} className="text-[#D4AF37]"/> : idx + 1}
                                </div>
@@ -2344,74 +2323,86 @@ export default function App() {
                          ))}
                       </div>
 
-                      <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col overflow-hidden">
-                         <div className="p-6 md:p-8 border-b border-gray-100 bg-[#FDFCF8]/50">
-                            <h4 className="text-xl md:text-2xl font-black text-[#003627] mb-2">{guidedPlan.steps[guidedStepIndex].title}</h4>
-                            <p className="text-gray-600 text-sm font-medium">{guidedPlan.steps[guidedStepIndex].instruction}</p>
-                             
-                            <div className="mt-5 p-5 bg-white border border-[#D4AF37]/30 rounded-xl flex flex-col gap-4 shadow-sm">
-                               <div className="flex items-center gap-2 mb-1">
-                                 <Lightbulb size={20} className="text-[#D4AF37] shrink-0"/>
-                                 <span className="text-[10px] font-black uppercase text-gray-500 tracking-widest">💡 Chọn 1 trong các Cấu trúc sau để dịch:</span>
-                               </div>
-                               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                 {guidedPlan.steps[guidedStepIndex].structures?.map((str, idx) => (
-                                    <div key={idx} className="bg-[#FDFCF8] p-4 rounded-lg border border-gray-200 shadow-sm hover:border-[#D4AF37]/50 transition-colors">
-                                       <span className="text-[9px] font-black text-white bg-[#003627] px-2 py-1 rounded inline-block mb-3 uppercase tracking-wider shadow-sm">{str.name}</span>
-                                       <p className="text-[#003627] font-semibold text-sm leading-relaxed">{str.hint}</p>
+                      <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex-1 flex flex-col overflow-hidden min-h-[400px]">
+                         {isGeneratingGuideStep ? (
+                             <div className="flex flex-col items-center justify-center flex-1 py-20">
+                                 <Loader2 className="animate-spin mb-5 text-[#D4AF37]" size={48}/>
+                                 <p className="font-black text-[#003627] text-lg uppercase tracking-widest">AI đang chuẩn bị nội dung...</p>
+                                 <p className="text-sm text-gray-500 mt-2 font-medium">Trích xuất cấu trúc siêu tốc ({GUIDED_STEPS_CONFIG[guidedStepIndex].title})</p>
+                             </div>
+                         ) : guidedData[GUIDED_STEPS_CONFIG[guidedStepIndex].id] ? (
+                             <>
+                                 <div className="p-6 md:p-8 border-b border-gray-100 bg-[#FDFCF8]/50">
+                                    <h4 className="text-xl md:text-2xl font-black text-[#003627] mb-2">{GUIDED_STEPS_CONFIG[guidedStepIndex].title}</h4>
+                                    <p className="text-gray-600 text-sm font-medium">{GUIDED_STEPS_CONFIG[guidedStepIndex].desc}</p>
+                                     
+                                    <div className="mt-5 p-5 bg-white border border-[#D4AF37]/30 rounded-xl flex flex-col gap-4 shadow-sm">
+                                       <div className="flex items-center gap-2 mb-1">
+                                         <Lightbulb size={20} className="text-[#D4AF37] shrink-0"/>
+                                         <span className="text-[10px] font-black uppercase text-gray-500 tracking-widest">💡 Chọn 1 trong các Cấu trúc sau để dịch:</span>
+                                       </div>
+                                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                         {guidedData[GUIDED_STEPS_CONFIG[guidedStepIndex].id].structures?.map((str, idx) => (
+                                            <div key={idx} className="bg-[#FDFCF8] p-4 rounded-lg border border-gray-200 shadow-sm hover:border-[#D4AF37]/50 transition-colors">
+                                               <span className="text-[9px] font-black text-white bg-[#003627] px-2 py-1 rounded inline-block mb-3 uppercase tracking-wider shadow-sm">{str.name}</span>
+                                               <p className="text-[#003627] font-semibold text-sm leading-relaxed">{str.hint}</p>
+                                            </div>
+                                         ))}
+                                       </div>
                                     </div>
-                                 ))}
-                               </div>
-                            </div>
-                         </div>
+                                 </div>
 
-                         <div className="p-6 md:p-8 flex-1 flex flex-col gap-5 bg-white">
-                            {guidedPlan.steps[guidedStepIndex].requiredVocab?.length > 0 && (
-                               <div className="mb-2">
-                                  <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-3 flex items-center gap-1.5"><Target size={14} className="text-[#D4AF37]"/> Thử sức với cụm từ ăn điểm:</span>
-                                  <div className="flex flex-wrap gap-2.5">
-                                     {guidedPlan.steps[guidedStepIndex].requiredVocab.map((v, i) => {
-                                        const currentText = guidedDrafts[guidedPlan.steps[guidedStepIndex].id] || '';
-                                        const isUsed = checkVocabUsed(currentText, v.phrase);
-                                        return (
-                                           <div key={i} className={`px-3 py-1.5 rounded border flex items-center gap-2 text-[13px] transition-all duration-300 ${isUsed ? 'bg-[#FDFCF8] border-[#D4AF37] text-[#003627] shadow-sm' : 'bg-white border-gray-200 text-gray-500'}`}>
-                                              {isUsed ? <CheckCircle size={14} className="text-[#D4AF37]"/> : <Circle size={14} className="text-gray-300"/>}
-                                              <span className="font-bold">{v.phrase}</span>
-                                              <span className="text-[11px] opacity-80 font-medium">({v.meaning})</span>
-                                           </div>
-                                        )
-                                     })}
-                                  </div>
-                               </div>
-                            )}
+                                 <div className="p-6 md:p-8 flex-1 flex flex-col gap-5 bg-white">
+                                    {guidedData[GUIDED_STEPS_CONFIG[guidedStepIndex].id].vocab?.length > 0 && (
+                                       <div className="mb-2">
+                                          <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-3 flex items-center gap-1.5"><Target size={14} className="text-[#D4AF37]"/> Thử sức với cụm từ ăn điểm:</span>
+                                          <div className="flex flex-wrap gap-2.5">
+                                             {guidedData[GUIDED_STEPS_CONFIG[guidedStepIndex].id].vocab.map((v, i) => {
+                                                const currentText = guidedDrafts[GUIDED_STEPS_CONFIG[guidedStepIndex].id] || '';
+                                                const isUsed = checkVocabUsed(currentText, v.phrase);
+                                                return (
+                                                   <div key={i} className={`px-3 py-1.5 rounded border flex items-center gap-2 text-[13px] transition-all duration-300 ${isUsed ? 'bg-[#FDFCF8] border-[#D4AF37] text-[#003627] shadow-sm' : 'bg-white border-gray-200 text-gray-500'}`}>
+                                                      {isUsed ? <CheckCircle size={14} className="text-[#D4AF37]"/> : <Circle size={14} className="text-gray-300"/>}
+                                                      <span className="font-bold">{v.phrase}</span>
+                                                      <span className="text-[11px] opacity-80 font-medium">({v.meaning})</span>
+                                                   </div>
+                                                )
+                                             })}
+                                          </div>
+                                       </div>
+                                    )}
 
-                            <textarea 
-                               className="w-full flex-1 min-h-[160px] p-5 bg-gray-50/50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-[#D4AF37]/30 focus:border-[#D4AF37] transition-all text-[#003627] leading-relaxed resize-none shadow-inner font-serif text-[15px]"
-                               placeholder="Gõ đoạn văn tiếng Anh của bạn vào đây..."
-                               value={guidedDrafts[guidedPlan.steps[guidedStepIndex].id]}
-                               onChange={(e) => setGuidedDrafts({...guidedDrafts, [guidedPlan.steps[guidedStepIndex].id]: e.target.value})}
-                               spellCheck={false}
-                            />
-                         </div>
+                                    <textarea 
+                                       className="w-full flex-1 min-h-[160px] p-5 bg-gray-50/50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-[#D4AF37]/30 focus:border-[#D4AF37] transition-all text-[#003627] leading-relaxed resize-none shadow-inner font-serif text-[15px]"
+                                       placeholder="Gõ đoạn văn tiếng Anh của bạn vào đây..."
+                                       value={guidedDrafts[GUIDED_STEPS_CONFIG[guidedStepIndex].id]}
+                                       onChange={(e) => setGuidedDrafts({...guidedDrafts, [GUIDED_STEPS_CONFIG[guidedStepIndex].id]: e.target.value})}
+                                       spellCheck={false}
+                                    />
+                                 </div>
+                             </>
+                         ) : null}
 
                          <div className="p-5 bg-[#FDFCF8] border-t border-gray-200 flex justify-between items-center shrink-0">
                             <button 
                                onClick={() => setGuidedStepIndex(Math.max(0, guidedStepIndex - 1))} 
-                               disabled={guidedStepIndex === 0}
+                               disabled={guidedStepIndex === 0 || isGeneratingGuideStep}
                                className="px-5 py-2.5 text-gray-500 font-bold bg-white border border-gray-200 hover:bg-gray-50 hover:text-[#003627] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm text-sm"
                             >
                                <ArrowLeft size={16}/> QUAY LẠI
                             </button>
                              
-                            {guidedStepIndex < guidedPlan.steps.length - 1 ? (
+                            {guidedStepIndex < GUIDED_STEPS_CONFIG.length - 1 ? (
                                <button 
                                   onClick={() => setGuidedStepIndex(guidedStepIndex + 1)} 
-                                  className="px-6 py-2.5 bg-[#003627] hover:bg-[#002b1f] text-[#D4AF37] font-black rounded-lg shadow-md transition-all flex items-center gap-2 text-sm tracking-wider"
+                                  disabled={isGeneratingGuideStep}
+                                  className="px-6 py-2.5 bg-[#003627] hover:bg-[#002b1f] text-[#D4AF37] font-black rounded-lg shadow-md transition-all flex items-center gap-2 text-sm tracking-wider disabled:opacity-50"
                                >
                                   TIẾP TỤC <ArrowRight size={16}/>
                                </button>
                             ) : (
                                <button 
+                                  disabled={isGeneratingGuideStep}
                                   onClick={() => {
                                      const fullEssay = [guidedDrafts.intro, guidedDrafts.body1, guidedDrafts.body2, guidedDrafts.conclusion]
                                                        .filter(text => text.trim().length > 0)
@@ -2422,15 +2413,14 @@ export default function App() {
                                      setIsGuidedDraft(true);
                                      showToast("Đã ghép bài thành công! Giờ bạn có thể chỉnh sửa thêm hoặc chấm điểm ngay.", "success", 5000);
                                   }} 
-                                  className="px-6 py-2.5 bg-[#D4AF37] hover:bg-[#c4a132] text-[#003627] font-black rounded-lg shadow-md transition-all flex items-center gap-2 text-sm tracking-wider"
+                                  className="px-6 py-2.5 bg-[#D4AF37] hover:bg-[#c4a132] text-[#003627] font-black rounded-lg shadow-md transition-all flex items-center gap-2 text-sm tracking-wider disabled:opacity-50"
                                >
                                   <CheckCircle2 size={18}/> HOÀN THÀNH
                                </button>
                             )}
                          </div>
                       </div>
-                   </div>
-                ) : null}
+                 </div>
              </div>
           </div>
         </div>
