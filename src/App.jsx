@@ -160,7 +160,7 @@ async function fetchWithRetry(options, retries = 2) {
     let timeoutId;
     try {
       const controller = new AbortController();
-      timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
+      timeoutId = setTimeout(() => controller.abort(), 60000); 
       
       const response = await fetch(url, { ...options, signal: controller.signal });
       clearTimeout(timeoutId);
@@ -327,7 +327,6 @@ export default function App() {
   const [showVocabModal, setShowVocabModal] = useState(false);
   const [showGuidedModal, setShowGuidedModal] = useState(false); 
 
-  // Guided Writing States (Lazy Load refactored)
   const [guidedStepIndex, setGuidedStepIndex] = useState(0);
   const [guidedData, setGuidedData] = useState({});
   const [guidedDrafts, setGuidedDrafts] = useState({ intro: '', body1: '', body2: '', conclusion: '' });
@@ -384,7 +383,7 @@ export default function App() {
   useEffect(() => {
     setMindMapData(null);
     setSuggestedPromptVocabs([]);
-    setGuidedData({}); // Xóa dữ liệu Hướng dẫn viết cũ nếu đổi đề
+    setGuidedData({}); 
   }, [prompt]);
 
   const [timeRemaining, setTimeRemaining] = useState(40 * 60);
@@ -559,7 +558,6 @@ export default function App() {
     const contextStart = Math.max(0, startIndex - 150);
     const context = essay.substring(contextStart, startIndex);
 
-    // [CẬP NHẬT PROMPT]: Ưu tiên từ vựng tự nhiên, hợp ngữ cảnh, tránh từ quá to tát
     const systemPrompt = `You are an IELTS Task 2 Vocabulary Copilot. 
     The student is writing: "...${context}[${vietnameseWord}]...".
     Translate the Vietnamese concept "[${vietnameseWord}]" into EXACTLY 3 English collocations/phrases that fit the context perfectly.
@@ -617,7 +615,7 @@ export default function App() {
     const handleMouseUp = () => { if (isDraggingRef.current) { isDraggingRef.current = false; document.body.style.cursor = 'default'; } };
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-    return () => { document.removeEventListener('mousemove', handleMouseMove); document.removeEventListener('mousemove', handleMouseUp); };
+    return () => { document.removeEventListener('mousemove', handleMouseMove); document.removeEventListener('mouseup', handleMouseUp); };
   }, []);
 
   const startDrag = (e) => { isDraggingRef.current = true; document.body.style.cursor = 'col-resize'; };
@@ -762,7 +760,6 @@ export default function App() {
     setIsGeneratingSample(true);
     showToast("Đề bài mới. Đang nhờ AI viết bài mẫu Band 8.0+...", "info", 5000);
     
-    // [CẬP NHẬT PROMPT]: Ép AI viết mạch lạc, sắc bén, từ vựng tự nhiên, tránh dùng từ "đao to búa lớn"
     const systemInstruction = `You are an expert, strict IELTS examiner. Write a Band 8.0+ sample essay for this prompt: "${prompt}". 
     CRITICAL WRITING PHILOSOPHY:
     1. Focus heavily on Coherence and Cohesion (CC) and Task Response (TR). Arguments must be sharp, logical, and well-developed.
@@ -829,7 +826,6 @@ export default function App() {
     
     setIsGeneratingPromptVocabs(true);
 
-    // [CẬP NHẬT PROMPT]: Lấy 10 cụm từ ngữ cảnh tự nhiên
     const systemInstruction = `Suggest exactly 10 natural, highly context-appropriate English collocations or phrases (Band 7.5+) for this prompt: "${prompt}".
     CRITICAL: Focus on precise, topic-specific vocabulary. DO NOT suggest overly complex, archaic, or forced academic words. Keep it highly natural for an IELTS essay.
     Return strictly JSON array of objects with {phrase, meaning}.`;
@@ -853,27 +849,42 @@ export default function App() {
     } catch (error) { handleApiError(error); setShowVocabSidebar(false); } finally { setIsGeneratingPromptVocabs(false); }
   };
 
-  // Hàm tải dữ liệu riêng cho TỪNG BƯỚC của Hướng dẫn viết (Tối ưu JSON + Thời gian chờ)
+  // --- CẬP NHẬT: KẸP NGỮ CẢNH (CONTEXT CHAINING) VÀ SIẾT KỶ LUẬT ---
   const fetchGuideStep = async (stepId, currentPrompt) => {
     if (!checkAndRecordApiCall()) return;
     setIsGeneratingGuideStep(true);
 
     const stepConfig = GUIDED_STEPS_CONFIG.find(s => s.id === stepId);
 
-    // [CẬP NHẬT PROMPT]: Yêu cầu lập luận mạch lạc, sắc bén, từ vựng tự nhiên
-    const systemInstruction = `You are an expert IELTS Writing Tutor. Create a translation exercise for the "${stepConfig.title}" paragraph based on this prompt: "${currentPrompt}".
-    CRITICAL WRITING PHILOSOPHY:
-    1. "structures": Provide 2 DIFFERENT highly logical ways to structure this paragraph. Focus on sharp arguments and excellent coherence. The "hint" MUST BE IN VIETNAMESE (the full sentence/ideas for the student to translate).
-    2. "vocab": Provide exactly 3 natural, highly context-appropriate English collocations (Band 7.5+). Avoid forced, overly "heavy" academic words; prioritize precise meaning and natural flow.
+    // Kẹp ngữ cảnh: Gom tất cả các phần học viên đã viết trước đó lại
+    let studentPreviousDraftsContext = "";
+    if (stepId === 'body1' && guidedDrafts.intro.trim()) {
+        studentPreviousDraftsContext = `\n\n[CONTEXT] The student has ALREADY written this Introduction:\n"${guidedDrafts.intro}"`;
+    } else if (stepId === 'body2') {
+        studentPreviousDraftsContext = `\n\n[CONTEXT] The student has ALREADY written:\n- Intro: "${guidedDrafts.intro}"\n- Body 1: "${guidedDrafts.body1}"`;
+    } else if (stepId === 'conclusion') {
+        studentPreviousDraftsContext = `\n\n[CONTEXT] The student has ALREADY written the full essay body:\n- Intro: "${guidedDrafts.intro}"\n- Body 1: "${guidedDrafts.body1}"\n- Body 2: "${guidedDrafts.body2}"`;
+    }
+
+    // Lệnh AI siêu nghiêm ngặt
+    const systemInstruction = `You are an expert IELTS Writing Tutor. Create a translation exercise for the "${stepConfig.title}" paragraph based on this prompt: "${currentPrompt}".${studentPreviousDraftsContext}
+    
+    CRITICAL WRITING PHILOSOPHY & RULES:
+    1. "structures": Provide 2 DIFFERENT logical ways to structure this paragraph. 
+       - The "hint" MUST BE A COMPLETE, FULLY DEVELOPED PARAGRAPH IN VIETNAMESE (at least 3-4 sentences long, including Topic Sentence, Explanation, and Example if applicable).
+       - NEVER use instructional words like "Hãy tóm tắt...", "Nêu lên...", "Nhắc lại...". You must WRITE THE ACTUAL SENTENCES yourself for the student to translate word-by-word.
+       - The paragraph must logically connect to the [CONTEXT] provided above (if any).
+    2. "vocab": Provide exactly 3 natural, highly context-appropriate English collocations (Band 7.5+). Avoid forced, overly "heavy" academic words.
+    
     Return STRICTLY JSON matching: { "structures": [{"name": "Cách 1", "hint": "..."}, {"name": "Cách 2", "hint": "..."}] , "vocab": [{"phrase": "...", "meaning": "..."}] }`;
 
     try {
         const result = await fetchWithRetry({
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                contents: [{ parts: [{ text: `Generate guide for step: ${stepId}` }] }],
+                contents: [{ parts: [{ text: `Generate translation guide paragraph for step: ${stepId}` }] }],
                 systemInstruction: { parts: [{ text: systemInstruction }] },
-                generationConfig: { responseMimeType: "application/json", temperature: 0.2 } // Ép độ chính xác cao
+                generationConfig: { responseMimeType: "application/json", temperature: 0.2 } 
             })
         });
         const parsed = parseGeminiResponse(result.candidates[0].content.parts[0].text);
@@ -886,7 +897,6 @@ export default function App() {
     }
   };
 
-  // Gọi Hướng dẫn viết (Mở Modal ngay lập tức)
   const handleStartGuidedWriting = () => {
     if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước!", "error");
     setGuidedStepIndex(0);
@@ -895,7 +905,6 @@ export default function App() {
     setShowGuidedModal(true); 
   };
 
-  // Tự động tải bước tiếp theo nếu chưa có dữ liệu
   useEffect(() => {
     if (showGuidedModal) {
       const stepId = GUIDED_STEPS_CONFIG[guidedStepIndex].id;
@@ -911,7 +920,6 @@ export default function App() {
     if (!checkAndRecordApiCall()) return; 
     
     setIsParaphrasing(true); setParaphraseResult(null);
-    // [CẬP NHẬT PROMPT]: Nâng cấp câu một cách tự nhiên
     const systemPrompt = `Paraphrase the following sentence in 2 styles: Band 6.5 and Band 7.5+. Input: "${paraphraseInput}". 
     For Band 7.5+, focus on highly natural flow and precise meaning, avoiding overly forced "big words".
     Return JSON: { "band65": "...", "band75": "..." }.`;
@@ -949,7 +957,6 @@ export default function App() {
         For CC and LR, DO NOT penalize natural phrasing or implicit cohesion if it matches the high-level style of the reference essays.`;
     }
 
-    // [CẬP NHẬT PROMPT]: Yêu cầu bản Polished Essay tập trung vào CC, Logic và Từ vựng tự nhiên
     let systemInstruction = `You are a strict and expert IELTS Writing Task 2 examiner. 
     1. SCORING CRITERIA: Grade the essay based STRICTLY on the official IELTS Writing Task 2 Band Descriptors (Public Version).
     2. SCORING RULE: Calculate the average of the 4 criteria. Round down to the nearest 0.5. ${referenceContext}
@@ -1590,6 +1597,7 @@ export default function App() {
                </div>
                <div className="flex gap-2 mb-4">
                   {s.topic && <span className="text-[10px] font-bold bg-[#FDFCF8] text-[#003627] px-2.5 py-1 rounded border border-[#D4AF37]/30 inline-block uppercase tracking-wider">{TOPICS.find(t => t.id === s.topic)?.name?.split(' ')[0] || s.topic}</span>}
+                  {s.subtopic && <span className="text-[10px] font-bold bg-white text-gray-500 px-2.5 py-1 rounded border border-gray-200 inline-block uppercase tracking-wider">{SUBTOPICS[s.topic]?.find(st => st.id === s.subtopic)?.name || s.subtopic}</span>}
                </div>
                <h4 className="font-bold text-[#003627] mb-3 text-sm leading-relaxed pr-10">{s.prompt}</h4>
                <p className="text-xs text-gray-500 leading-relaxed line-clamp-4 font-serif">{s.content}</p>
@@ -1643,6 +1651,9 @@ export default function App() {
                      ) : v.topicId ? (
                         <span className="text-[9px] font-black text-[#003627] bg-[#FDFCF8] px-2.5 py-1 rounded uppercase tracking-widest border border-[#D4AF37]/40 flex items-center gap-1.5"><Layers size={10} className="text-[#D4AF37]"/> {TOPICS.find(t => t.id === v.topicId)?.name?.split(' ')[0] || v.topicId}</span>
                      ) : null}
+                     {v.subtopicId && (
+                        <span className="text-[9px] font-black text-[#003627] bg-white px-2.5 py-1 rounded uppercase tracking-widest border border-gray-200">{SUBTOPICS[v.topicId]?.find(st => st.id === v.subtopicId)?.name || v.subtopicId}</span>
+                     )}
                    </div>
                    <h3 className="text-xl md:text-2xl font-black text-[#003627] mb-2 leading-tight break-words">{v.phrase}</h3>
                    <p className="text-sm font-semibold text-gray-500 break-words">{v.translation}</p>
