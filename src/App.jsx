@@ -4,7 +4,7 @@ import {
   Brain, PenTool, Layers, ArrowRight, ArrowLeft, Wand2, Download, Upload, Plus, Trash2, X, Save, Award, Clock, Settings, RefreshCw,
   ListChecks, Library, ChevronDown, ChevronUp, Tags, Gamepad2, CheckCircle2, XCircle, ShieldAlert, Columns, Lightbulb,
   PanelRightOpen, PanelRightClose, BarChart3, Wrench, Copy, TrendingDown, Target, Filter, Circle, Search, AlertCircle,
-  FileText, MessageSquareDiff, MessageSquare, Send, BookMarked, Languages, FastForward, Highlighter, BookPlus, LogOut, Key, Zap
+  FileText, MessageSquareDiff, MessageSquare, Send, BookMarked, Languages, FastForward, Highlighter, BookPlus, LogOut, Key, Zap, Eye
 } from 'lucide-react';
 
 // ==========================================
@@ -138,10 +138,11 @@ async function fetchWithRetry(options, retries = 2) {
                             overallBand: 7.5, trScore: 7.0, ccScore: 8.0, lrScore: 7.0, graScore: 7.5,
                             trComment: "Khá tốt.", ccComment: "Mượt mà.", lrComment: "Từ vựng ổn.", graComment: "Ngữ pháp tốt.",
                             detailedCorrections: [], polishedEssay: "Mock polished essay.",
-                            centralIdea: "Mock Central Idea", view40: { title: "View 40", ideas: [{letter: 'E', category: 'Economic', keyword: 'Money'}] }, view60: { title: "View 60", ideas: [{letter: 'S', category: 'Social', keyword: 'People'}] },
-                            structures: [{name: "Cách 1", hint: "Mock hint 1"}, {name: "Cách 2", hint: "Mock hint 2"}],
+                            centralIdea: "Mock Central Idea", view40: { title: "View 40", ideas: [{letter: 'E', category: 'Economic', keyword: 'Money', explanation: 'Giải thích tiếng Việt'}] }, view60: { title: "View 60", ideas: [{letter: 'S', category: 'Social', keyword: 'People', explanation: 'Giải thích tiếng Việt'}] },
+                            originalEnglish: "This is a mock original English paragraph for reverse translation.",
+                            breakdown: [{role: "Topic Sentence", vnText: "Đây là câu chủ đề dịch sang tiếng Việt."}, {role: "Explanation", vnText: "Đây là câu giải thích dịch sang tiếng Việt."}],
                             vocab: [{phrase: "environmental impact", meaning: "tác động môi trường"}],
-                            options: [{ phrase: "environmental protection", band: "7.0" }, { phrase: "safeguarding the environment", band: "8.0" }]
+                            options: [{ phrase: "environmental protection", band: "7.0" }]
                         }) 
                     }] 
                 } 
@@ -327,17 +328,19 @@ export default function App() {
   const [showVocabModal, setShowVocabModal] = useState(false);
   const [showGuidedModal, setShowGuidedModal] = useState(false); 
 
+  // Guided Writing States
   const [guidedStepIndex, setGuidedStepIndex] = useState(0);
   const [guidedData, setGuidedData] = useState({});
   const [guidedDrafts, setGuidedDrafts] = useState({ intro: '', body1: '', body2: '', conclusion: '' });
   const [isGeneratingGuideStep, setIsGeneratingGuideStep] = useState(false);
   const [isGuidedDraft, setIsGuidedDraft] = useState(false); 
+  const [revealedSteps, setRevealedSteps] = useState({}); // Trạng thái "Soi gương"
 
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState(null);
   
   const [sampleEssays, setSampleEssays] = useState(IS_PREVIEW_MODE ? [
-    { id: 's1', topic: 'society', subtopic: 'soc_traffic', prompt: 'Some people think that governments should invest mainly in making public transportation faster while other think there are more important priorities. Discuss both views and give your own opinion.', content: 'While some people believe that the most important factor in public transport is speed, others extol areas such as cost and the environment...' },
+    { id: 's1', topic: 'society', subtopic: 'soc_traffic', prompt: 'Some people think that governments should invest mainly in making public transportation faster while other think there are more important priorities. Discuss both views and give your own opinion.', content: 'While some people believe that the most important factor in public transport is speed, others extol areas such as cost and the environment...\n\nAnother significant viewpoint is that prioritizing alternative sectors yields greater societal benefits. Funding healthcare and education, for instance, provides a more profound long-term impact on national development than simply accelerating commute times.\n\nIn conclusion, although fast public transit is beneficial, allocating resources to fundamental services is paramount.' },
     { id: 's2', topic: 'crime', subtopic: 'crime_law_justice', prompt: 'In some countries, some criminal trials in law courts are shown on television so that the general public can watch. Do the advantages outweigh the disadvantages?', content: 'It is true that people, in some countries, can watch some criminal trials live on TV...' }
   ] : []);
   const [vocabularies, setVocabularies] = useState(IS_PREVIEW_MODE ? [
@@ -384,6 +387,7 @@ export default function App() {
     setMindMapData(null);
     setSuggestedPromptVocabs([]);
     setGuidedData({}); 
+    setRevealedSteps({});
   }, [prompt]);
 
   const [timeRemaining, setTimeRemaining] = useState(40 * 60);
@@ -793,6 +797,7 @@ export default function App() {
     }
   };
 
+  // --- CẬP NHẬT: PHÂN TÍCH EGOSFI (Bỏ đọc bài mẫu, Tiếng Việt + Tiếng Anh, Temp 0.2) ---
   const handleSuggestIdeas = async () => {
     if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước.", "error");
     setShowIdeasModal(true); if (mindMapData) return; 
@@ -800,25 +805,29 @@ export default function App() {
     
     setIsGeneratingIdeas(true);
 
-    const relevantSample = sampleEssays.find(s => s.prompt.toLowerCase().trim() === prompt.toLowerCase().trim());
-    let referenceContext = "";
-    if (relevantSample) {
-        referenceContext = `\n\nREFERENCE ESSAY TO BASE IDEAS ON:\n${relevantSample.content}\n\nCRITICAL INSTRUCTION: Analyze the Reference Essay provided above. Extract the core arguments and ideas from it to build this EGOSFI mind map. Do not invent completely new ideas if the reference essay already covers the topic well.`;
-    }
-
     const systemInstruction = `You are an IELTS Writing Task 2 expert. Generate an EGOSFI mind map for this prompt: "${prompt}".
-    Structure ideas into View 40 (opposing) and View 60 (supporting). Use E, G, O, S, F, I categories. Focus on sharp, highly logical arguments.${referenceContext}
-    Return strictly JSON: { "centralIdea": "...", "view40": {"title": "...", "ideas": [{"letter": "S", "category": "...", "keyword": "...", "explanation": "..."}]}, "view60": {...} }`;
+    Evaluate ideas across E (Economic), G (Government), O (Objective/Environment), S (Social), F (Family), I (Individual) categories.
+    CRITICAL INSTRUCTIONS:
+    1. DO NOT force all 6 categories. ONLY include categories that are HIGHLY RELEVANT and yield sharp, logical arguments. OMIT any category that is weak or irrelevant to the prompt.
+    2. Structure the relevant ideas into View 40 (opposing) and View 60 (supporting).
+    3. "keyword" MUST be a short, high-level English phrase (Band 8.0+).
+    4. "explanation" MUST be a concise, clear explanation in VIETNAMESE.
+    Return strictly JSON: { "centralIdea": "...", "view40": {"title": "...", "ideas": [{"letter": "S", "category": "Social", "keyword": "English phrase", "explanation": "Giải thích tiếng Việt..."}]}, "view60": {...} }`;
     
     try {
       const result = await fetchWithRetry({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: "Generate EGOSFI mind map." }] }], systemInstruction: { parts: [{ text: systemInstruction }] }, generationConfig: { responseMimeType: "application/json" } })
+        body: JSON.stringify({ 
+            contents: [{ parts: [{ text: "Generate EGOSFI mind map." }] }], 
+            systemInstruction: { parts: [{ text: systemInstruction }] }, 
+            generationConfig: { responseMimeType: "application/json", temperature: 0.2 } 
+        })
       });
       setMindMapData(parseGeminiResponse(result.candidates[0].content.parts[0].text));
     } catch (error) { handleApiError(error); setShowIdeasModal(false); } finally { setIsGeneratingIdeas(false); }
   };
 
+  // --- CẬP NHẬT: 10 TỪ VỰNG (Bỏ đọc bài mẫu, Kèm ví dụ, Temp 0.2) ---
   const handleSuggestPromptVocab = async () => { 
     if (!prompt.trim()) return showToast("Vui lòng nhập đề bài trước.", "error");
     closeAllSidebars(); setShowVocabSidebar(true); if (suggestedPromptVocabs.length > 0) return; 
@@ -827,13 +836,19 @@ export default function App() {
     setIsGeneratingPromptVocabs(true);
 
     const systemInstruction = `Suggest exactly 10 natural, highly context-appropriate English collocations or phrases (Band 7.5+) for this prompt: "${prompt}".
-    CRITICAL: Focus on precise, topic-specific vocabulary. DO NOT suggest overly complex, archaic, or forced academic words. Keep it highly natural for an IELTS essay.
-    Return strictly JSON array of objects with {phrase, meaning}.`;
+    CRITICAL: 
+    1. Focus on precise, topic-specific vocabulary. DO NOT suggest overly complex, archaic, or forced academic words.
+    2. Provide a short, illustrative English example sentence for each phrase, demonstrating how it could be used in an essay for this specific prompt.
+    Return strictly JSON array of objects with {phrase, meaning, example}.`;
     
     try {
       const result = await fetchWithRetry({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: "Suggest vocabulary." }] }], systemInstruction: { parts: [{ text: systemInstruction }] }, generationConfig: { responseMimeType: "application/json" } })
+        body: JSON.stringify({ 
+            contents: [{ parts: [{ text: "Suggest vocabulary with examples." }] }], 
+            systemInstruction: { parts: [{ text: systemInstruction }] }, 
+            generationConfig: { responseMimeType: "application/json", temperature: 0.2 } 
+        })
       });
       
       const responseData = parseGeminiResponse(result.candidates[0].content.parts[0].text);
@@ -849,40 +864,69 @@ export default function App() {
     } catch (error) { handleApiError(error); setShowVocabSidebar(false); } finally { setIsGeneratingPromptVocabs(false); }
   };
 
-  // --- CẬP NHẬT: KẸP NGỮ CẢNH (CONTEXT CHAINING) VÀ SIẾT KỶ LUẬT ---
+  // --- CẬP NHẬT ĐẠI PHẪU THUẬT: GUIDED WRITING (REVERSE TRANSLATION) ---
   const fetchGuideStep = async (stepId, currentPrompt) => {
     if (!checkAndRecordApiCall()) return;
     setIsGeneratingGuideStep(true);
 
     const stepConfig = GUIDED_STEPS_CONFIG.find(s => s.id === stepId);
+    
+    // Tìm bài mẫu tương ứng để dịch ngược
+    const relevantSample = sampleEssays.find(s => s.prompt.toLowerCase().trim() === currentPrompt.toLowerCase().trim());
+    let sourceParagraph = "";
 
-    // Kẹp ngữ cảnh: Gom tất cả các phần học viên đã viết trước đó lại
-    let studentPreviousDraftsContext = "";
-    if (stepId === 'body1' && guidedDrafts.intro.trim()) {
-        studentPreviousDraftsContext = `\n\n[CONTEXT] The student has ALREADY written this Introduction:\n"${guidedDrafts.intro}"`;
-    } else if (stepId === 'body2') {
-        studentPreviousDraftsContext = `\n\n[CONTEXT] The student has ALREADY written:\n- Intro: "${guidedDrafts.intro}"\n- Body 1: "${guidedDrafts.body1}"`;
-    } else if (stepId === 'conclusion') {
-        studentPreviousDraftsContext = `\n\n[CONTEXT] The student has ALREADY written the full essay body:\n- Intro: "${guidedDrafts.intro}"\n- Body 1: "${guidedDrafts.body1}"\n- Body 2: "${guidedDrafts.body2}"`;
+    if (relevantSample) {
+        // Cắt bài văn thành các đoạn. Rough estimation:
+        // Đoạn 1: Intro, Đoạn 2: Body 1, Đoạn 3: Body 2 (hoặc đoạn cuối cùng trước kết bài), Đoạn cuối: Conclusion
+        const paragraphs = relevantSample.content.split('\n\n').filter(p => p.trim().length > 20);
+        if (paragraphs.length >= 3) {
+             if (stepId === 'intro') sourceParagraph = paragraphs[0];
+             else if (stepId === 'body1') sourceParagraph = paragraphs[1];
+             else if (stepId === 'body2') sourceParagraph = paragraphs.length > 3 ? paragraphs[2] : paragraphs[1]; // Fallback
+             else if (stepId === 'conclusion') sourceParagraph = paragraphs[paragraphs.length - 1];
+        }
     }
 
-    // Lệnh AI siêu nghiêm ngặt
-    const systemInstruction = `You are an expert IELTS Writing Tutor. Create a translation exercise for the "${stepConfig.title}" paragraph based on this prompt: "${currentPrompt}".${studentPreviousDraftsContext}
+    let systemInstruction = "";
     
-    CRITICAL WRITING PHILOSOPHY & RULES:
-    1. "structures": Provide 2 DIFFERENT logical ways to structure this paragraph. 
-       - The "hint" MUST BE A COMPLETE, FULLY DEVELOPED PARAGRAPH IN VIETNAMESE (at least 3-4 sentences long, including Topic Sentence, Explanation, and Example if applicable).
-       - NEVER use instructional words like "Hãy tóm tắt...", "Nêu lên...", "Nhắc lại...". You must WRITE THE ACTUAL SENTENCES yourself for the student to translate word-by-word.
-       - The paragraph must logically connect to the [CONTEXT] provided above (if any).
-    2. "vocab": Provide exactly 3 natural, highly context-appropriate English collocations (Band 7.5+). Avoid forced, overly "heavy" academic words.
-    
-    Return STRICTLY JSON matching: { "structures": [{"name": "Cách 1", "hint": "..."}, {"name": "Cách 2", "hint": "..."}] , "vocab": [{"phrase": "...", "meaning": "..."}] }`;
+    if (sourceParagraph) {
+        // Trường hợp có bài mẫu: Dịch & Phân rã
+        systemInstruction = `You are an expert IELTS Writing Tutor. Your task is to create a Reverse Translation exercise based on an existing Band 8.0 paragraph.
+        Input Paragraph: "${sourceParagraph}"
+        
+        CRITICAL RULES:
+        1. "originalEnglish": Return the EXACT input paragraph provided above. Do not change a word.
+        2. "breakdown": Break the paragraph down into logical parts (e.g., Topic Sentence, Explanation, Example, Result). For each part, provide a highly accurate, natural VIETNAMESE translation ("vnText").
+        3. "vocab": Extract exactly 3 high-level, natural collocations (Band 7.5+) used in the paragraph.
+        
+        Return STRICTLY JSON: 
+        { 
+          "originalEnglish": "...", 
+          "breakdown": [{"role": "Mở đoạn", "vnText": "..."}, {"role": "Giải thích", "vnText": "..."}], 
+          "vocab": [{"phrase": "...", "meaning": "..."}] 
+        }`;
+    } else {
+        // Trường hợp không có bài mẫu: Tự viết & Phân rã
+        systemInstruction = `You are an expert IELTS Writing Tutor. Create a Reverse Translation exercise for the "${stepConfig.title}" paragraph based on this prompt: "${currentPrompt}".
+        
+        CRITICAL RULES:
+        1. "originalEnglish": First, write a highly coherent, logically sharp, Band 8.0 English paragraph for this specific step. Use natural vocabulary.
+        2. "breakdown": Break your English paragraph down into logical parts (e.g., Topic Sentence, Explanation, Example). For each part, provide a highly accurate VIETNAMESE translation ("vnText").
+        3. "vocab": Extract exactly 3 high-level collocations used in your paragraph.
+        
+        Return STRICTLY JSON: 
+        { 
+          "originalEnglish": "...", 
+          "breakdown": [{"role": "Câu chủ đề", "vnText": "..."}, {"role": "Giải thích", "vnText": "..."}], 
+          "vocab": [{"phrase": "...", "meaning": "..."}] 
+        }`;
+    }
 
     try {
         const result = await fetchWithRetry({
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                contents: [{ parts: [{ text: `Generate translation guide paragraph for step: ${stepId}` }] }],
+                contents: [{ parts: [{ text: `Generate translation breakdown for step: ${stepId}` }] }],
                 systemInstruction: { parts: [{ text: systemInstruction }] },
                 generationConfig: { responseMimeType: "application/json", temperature: 0.2 } 
             })
@@ -891,7 +935,7 @@ export default function App() {
         setGuidedData(prev => ({ ...prev, [stepId]: parsed }));
     } catch (error) {
         handleApiError(error);
-        setGuidedData(prev => ({ ...prev, [stepId]: { structures: [{name: 'Lỗi', hint: 'Không tải được nội dung, hãy thử lại.'}], vocab: [] } }));
+        setGuidedData(prev => ({ ...prev, [stepId]: { breakdown: [{role: 'Lỗi', vnText: 'Không tải được nội dung, hãy thử lại.'}], vocab: [], originalEnglish: '' } }));
     } finally {
         setIsGeneratingGuideStep(false);
     }
@@ -902,6 +946,7 @@ export default function App() {
     setGuidedStepIndex(0);
     setGuidedData({});
     setGuidedDrafts({ intro: '', body1: '', body2: '', conclusion: '' });
+    setRevealedSteps({});
     setShowGuidedModal(true); 
   };
 
@@ -1326,7 +1371,7 @@ export default function App() {
             
             <div className="flex flex-wrap gap-2 pt-1">
               <button onClick={handleStartGuidedWriting} className="text-xs font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-700 hover:border-[#003627] hover:text-[#003627] transition-colors shadow-sm">
-                <BookOpen size={14} className="text-[#D4AF37]" /> Hướng dẫn viết
+                <Wand2 size={14} className="text-[#D4AF37]" /> Hướng dẫn viết
               </button>
               <button onClick={() => { closeAllSidebars(); handleSuggestPromptVocab(); }} disabled={isGeneratingPromptVocabs} className="text-xs font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-700 hover:border-[#003627] hover:text-[#003627] transition-colors shadow-sm disabled:opacity-50">
                 {isGeneratingPromptVocabs ? <Loader2 size={14} className="animate-spin"/> : <Tags size={14} className="text-[#D4AF37]" />} 10 Từ Ăn Điểm
@@ -1335,7 +1380,7 @@ export default function App() {
                 <Columns size={14} className="text-[#D4AF37]" /> Cấu trúc 40/60
               </button>
               <button onClick={handleSuggestIdeas} disabled={isGeneratingIdeas} className="text-xs font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-700 hover:border-[#003627] hover:text-[#003627] transition-colors shadow-sm disabled:opacity-50">
-                {isGeneratingIdeas ? <Loader2 size={14} className="animate-spin"/> : <Lightbulb size={14} className="text-[#D4AF37]" />} Sơ đồ ý tưởng
+                {isGeneratingIdeas ? <Loader2 size={14} className="animate-spin"/> : <Lightbulb size={14} className="text-[#D4AF37]" />} Phân tích EGOSFI
               </button>
               <button onClick={handleViewSample} disabled={isGeneratingSample} className="text-xs font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-700 hover:border-[#003627] hover:text-[#003627] transition-colors shadow-sm disabled:opacity-50">
                 {isGeneratingSample ? <Loader2 size={14} className="animate-spin"/> : <BookPlus size={14} className="text-[#D4AF37]" />} Bài mẫu tham khảo
@@ -2024,12 +2069,17 @@ export default function App() {
               <h3 className="font-black text-[#003627] flex items-center gap-2 text-sm uppercase tracking-wider"><Tags size={16} className="text-[#D4AF37]"/> Từ Vựng Nổi Bật</h3>
               <button onClick={() => setShowVocabSidebar(false)} className="p-1.5 text-gray-400 hover:text-red-500 rounded bg-white border border-gray-200 shadow-sm"><X size={14}/></button>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-gray-50/50">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-gray-50/50">
                {isGeneratingPromptVocabs && <div className="text-center py-6 text-xs font-bold text-gray-500"><Loader2 className="animate-spin mx-auto mb-3 text-[#D4AF37]" size={24}/> Đang trích xuất từ vựng...</div>}
                {(Array.isArray(suggestedPromptVocabs) ? suggestedPromptVocabs : []).map((v, i) => (
                  <div key={i} className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:border-[#D4AF37] transition-colors cursor-default">
                     <div className="text-sm font-black text-[#003627] mb-1">{v.phrase}</div>
-                    <div className="text-xs text-gray-500 font-medium leading-relaxed">{v.meaning}</div>
+                    <div className="text-xs text-gray-500 font-medium leading-relaxed mb-3">{v.meaning}</div>
+                    {v.example && (
+                        <div className="bg-[#FDFCF8] border-l-2 border-[#D4AF37] p-2 text-[11px] text-gray-600 font-serif italic">
+                            "{v.example}"
+                        </div>
+                    )}
                  </div>
                ))}
             </div>
@@ -2351,18 +2401,20 @@ export default function App() {
                              <>
                                  <div className="p-6 md:p-8 border-b border-gray-100 bg-[#FDFCF8]/50">
                                     <h4 className="text-xl md:text-2xl font-black text-[#003627] mb-2">{GUIDED_STEPS_CONFIG[guidedStepIndex].title}</h4>
-                                    <p className="text-gray-600 text-sm font-medium">{GUIDED_STEPS_CONFIG[guidedStepIndex].desc}</p>
+                                    <p className="text-gray-600 text-sm font-medium mb-5">{GUIDED_STEPS_CONFIG[guidedStepIndex].desc}</p>
                                      
-                                    <div className="mt-5 p-5 bg-white border border-[#D4AF37]/30 rounded-xl flex flex-col gap-4 shadow-sm">
-                                       <div className="flex items-center gap-2 mb-1">
+                                    <div className="bg-white border border-[#D4AF37]/30 rounded-xl flex flex-col shadow-sm overflow-hidden">
+                                       <div className="p-4 border-b border-gray-100 flex items-center gap-2 bg-[#FDFCF8]">
                                          <Lightbulb size={20} className="text-[#D4AF37] shrink-0"/>
-                                         <span className="text-[10px] font-black uppercase text-gray-500 tracking-widest">💡 Chọn 1 trong các Cấu trúc sau để dịch:</span>
+                                         <span className="text-[10px] font-black uppercase text-[#003627] tracking-widest">Dịch các ý sau sang tiếng Anh:</span>
                                        </div>
-                                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                         {guidedData[GUIDED_STEPS_CONFIG[guidedStepIndex].id].structures?.map((str, idx) => (
-                                            <div key={idx} className="bg-[#FDFCF8] p-4 rounded-lg border border-gray-200 shadow-sm hover:border-[#D4AF37]/50 transition-colors">
-                                               <span className="text-[9px] font-black text-white bg-[#003627] px-2 py-1 rounded inline-block mb-3 uppercase tracking-wider shadow-sm">{str.name}</span>
-                                               <p className="text-[#003627] font-semibold text-sm leading-relaxed">{str.hint}</p>
+                                       <div className="p-5 flex flex-col gap-4">
+                                         {guidedData[GUIDED_STEPS_CONFIG[guidedStepIndex].id].breakdown?.map((part, idx) => (
+                                            <div key={idx} className="flex gap-4 items-start">
+                                               <div className="shrink-0 bg-[#003627] text-[#D4AF37] px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider mt-0.5 whitespace-nowrap min-w-[100px] text-center shadow-sm">
+                                                  {part.role}
+                                               </div>
+                                               <p className="text-[#003627] font-semibold text-sm leading-relaxed">{part.vnText}</p>
                                             </div>
                                          ))}
                                        </div>
@@ -2396,6 +2448,28 @@ export default function App() {
                                        onChange={(e) => setGuidedDrafts({...guidedDrafts, [GUIDED_STEPS_CONFIG[guidedStepIndex].id]: e.target.value})}
                                        spellCheck={false}
                                     />
+                                    
+                                    {/* KHỐI NÚT "SOI GƯƠNG" BẢN GỐC */}
+                                    <div className="mt-2">
+                                        {!revealedSteps[GUIDED_STEPS_CONFIG[guidedStepIndex].id] ? (
+                                            <button 
+                                                onClick={() => setRevealedSteps(prev => ({...prev, [GUIDED_STEPS_CONFIG[guidedStepIndex].id]: true}))}
+                                                className="text-[11px] font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 border border-gray-200 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                                            >
+                                                <Eye size={14} /> 👀 Xem bản tiếng Anh gốc (Band 8.0)
+                                            </button>
+                                        ) : (
+                                            <div className="bg-[#FDFCF8] border-l-4 border-[#003627] p-5 rounded-lg shadow-sm animate-fadeIn">
+                                                <p className="text-[10px] font-black uppercase text-[#003627] tracking-widest mb-3 flex items-center gap-2">
+                                                    <CheckCircle2 size={14} className="text-[#D4AF37]" /> Bản tiếng Anh tham khảo
+                                                </p>
+                                                <p className="text-[15px] font-serif leading-relaxed text-gray-800 text-justify">
+                                                    {guidedData[GUIDED_STEPS_CONFIG[guidedStepIndex].id].originalEnglish}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+
                                  </div>
                              </>
                          ) : null}
