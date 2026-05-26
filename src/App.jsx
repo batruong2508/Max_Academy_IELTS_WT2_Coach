@@ -410,6 +410,7 @@ export default function App() {
 
   const [filterSampleTopic, setFilterSampleTopic] = useState('');
   const [filterSampleSubtopic, setFilterSampleSubtopic] = useState('');
+  const [searchSampleQuery, setSearchSampleQuery] = useState(''); // [CẬP NHẬT] Thêm state tìm kiếm
   const [filterVocabTopic, setFilterVocabTopic] = useState('');
   const [filterVocabSubtopic, setFilterVocabSubtopic] = useState('');
   const [filterQuizTopic, setFilterQuizTopic] = useState('');
@@ -1609,29 +1610,55 @@ export default function App() {
     const filteredSamples = sampleEssays.filter(s => {
       const matchTopic = filterSampleTopic ? s.topic === filterSampleTopic : true;
       const matchSubtopic = filterSampleSubtopic ? s.subtopic === filterSampleSubtopic : true;
-      return matchTopic && matchSubtopic;
+      
+      // [CẬP NHẬT] Logic tìm kiếm gần đúng (Fuzzy Match Tokenization)
+      let matchSearch = true;
+      if (searchSampleQuery.trim() !== '') {
+         const queryTokens = searchSampleQuery.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+         const targetText = (s.prompt || '').toLowerCase();
+         matchSearch = queryTokens.every(token => targetText.includes(token));
+      }
+      
+      return matchTopic && matchSubtopic && matchSearch;
     });
     
     return (
     <div className="max-w-5xl mx-auto p-6 lg:p-8 animate-fadeIn h-full flex flex-col w-full">
-       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 shrink-0 gap-4">
+       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 shrink-0 gap-4">
           <h2 className="text-2xl font-black text-[#003627] flex items-center gap-2">
              <Library className="text-[#D4AF37]"/> Kho Bài Mẫu
              <span className="ml-2 text-xs font-bold bg-[#FDFCF8] text-[#003627] px-3 py-1.5 rounded-md shadow-sm border border-[#D4AF37]/30">{filteredSamples.length} bài</span>
           </h2>
-          <div className="flex flex-wrap items-center gap-3">
-             <select className="bg-white border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-semibold text-gray-700 outline-none focus:border-[#D4AF37] shadow-sm" value={filterSampleTopic} onChange={(e) => {setFilterSampleTopic(e.target.value); setFilterSampleSubtopic('');}}>
-                <option value="">Lọc theo Chủ đề</option>
-                {TOPICS.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-             </select>
-             <select className="bg-white border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-semibold text-gray-700 outline-none focus:border-[#D4AF37] shadow-sm" value={filterSampleSubtopic} onChange={(e) => setFilterSampleSubtopic(e.target.value)} disabled={!filterSampleTopic || filterSampleTopic === 'general'}>
-                <option value="">Lọc Chủ đề phụ</option>
-                {filterSampleTopic && SUBTOPICS[filterSampleTopic]?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-             </select>
+          <div className="flex items-center gap-3 w-full md:w-auto justify-end">
              <button onClick={() => setDeleteAllModal({ show: true, collection: 'sample_essays', confirmText: '', isDeleting: false })} disabled={filteredSamples.length === 0} className="bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 px-4 py-2.5 rounded-lg font-bold flex items-center gap-2 transition-colors disabled:opacity-50 shadow-sm" title="Xóa toàn bộ bài mẫu"><Trash2 size={16}/></button>
              <button onClick={() => { setNewSample({ topic: '', subtopic: '', prompt: '', content: '' }); setShowSampleModal(true); }} className="bg-[#003627] hover:bg-[#002b1f] text-white px-5 py-2.5 rounded-lg font-bold flex items-center gap-2 shadow-md transition-colors"><Plus size={18} className="hidden sm:block text-[#D4AF37]"/> Thêm bài mẫu</button>
           </div>
        </div>
+
+       {/* [CẬP NHẬT] Thanh Tìm kiếm & Lọc (Giao diện mới gọn gàng hơn) */}
+       <div className="flex flex-wrap items-center gap-3 mb-8 bg-gray-50 p-3 rounded-xl border border-gray-200 w-full shrink-0 shadow-inner">
+          <div className="relative flex-1 min-w-[250px]">
+             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search size={16} className="text-gray-400" />
+             </div>
+             <input
+                type="text"
+                placeholder="Tìm đề bài (vd: crime, technology)..."
+                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20 transition-all shadow-sm"
+                value={searchSampleQuery}
+                onChange={(e) => setSearchSampleQuery(e.target.value)}
+             />
+          </div>
+          <select className="bg-white border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-semibold text-gray-700 outline-none focus:border-[#D4AF37] shadow-sm w-full md:w-[180px]" value={filterSampleTopic} onChange={(e) => {setFilterSampleTopic(e.target.value); setFilterSampleSubtopic('');}}>
+             <option value="">Lọc theo Chủ đề</option>
+             {TOPICS.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+          <select className="bg-white border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-semibold text-gray-700 outline-none focus:border-[#D4AF37] shadow-sm w-full md:w-[180px]" value={filterSampleSubtopic} onChange={(e) => setFilterSampleSubtopic(e.target.value)} disabled={!filterSampleTopic || filterSampleTopic === 'general'}>
+             <option value="">Lọc Chủ đề phụ</option>
+             {filterSampleTopic && SUBTOPICS[filterSampleTopic]?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+       </div>
+
        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto custom-scrollbar flex-1 pb-10 content-start">
           {filteredSamples.length === 0 ? <div className="col-span-full py-20 text-center text-gray-400 font-bold border-2 border-dashed border-gray-200 rounded-xl bg-white">Chưa có bài mẫu nào trong chủ đề này.</div> :
           filteredSamples.map(s => (
